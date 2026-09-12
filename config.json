@@ -1,0 +1,22 @@
+{
+    "name": "Twilio Logs",
+    "description": "Fetch errors logged when sending messages to participants and messages sent by participants erronously to your Twilio number",
+    "namespace": "UWMadison\\TwilioLogs",
+    "authors": [
+        {
+            "name": "Adam Nunez",
+            "email": "Adam.Nunez@ctri.wisc.edu",
+            "institution": "UW Madison - Center for Tobacco Research and Intervention"
+        }
+    ],
+    "framework-version": 17,
+    "crons": [
+        {
+            "cron_name": "FetchTwilioLogs",
+            "cron_description": "Fetch Twilio failed message logs",
+            "method": "fetchLogs",
+            "cron_frequency": "1800",
+            "cron_max_run_time": "300"
+        }
+    ]
+}
