@@ -495,7 +495,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 WHERE project_id = ? 
                   AND element_type = 'text'
                   AND (
-                      val_type LIKE 'phone%' 
+                      element_validation_type LIKE 'phone%' 
                       OR field_name LIKE '%phone%' 
                       OR field_name LIKE '%mobile%' 
                       OR field_name LIKE '%cell%'
