@@ -1,7 +1,7 @@
 {
-    "name": "Twilio Logs",
-    "description": "Fetch errors logged when sending messages to participants and messages sent by participants erronously to your Twilio number",
-    "namespace": "UWMadison\\TwilioLogs",
+    "name": "Better Twilio Logs",
+    "description": "Fetch errors logged when sending messages to participants and messages sent by participants erronously to your Twilio number, then easily work them as a task list.",
+    "namespace": "UWMadison\\BetterTwilioLogs",
     "authors": [
         {
             "name": "Adam Nunez",
@@ -10,13 +10,76 @@
         }
     ],
     "framework-version": 17,
+    "links": {
+        "project": [
+            {
+                "name": "Better Twilio Logs",
+                "icon": "fas fa-sms",
+                "url": "index.php",
+                "show-header-and-footer": true
+            }
+        ]
+    },
     "crons": [
         {
             "cron_name": "FetchTwilioLogs",
-            "cron_description": "Fetch Twilio failed message logs",
+            "cron_description": "Fetch Twilio failed message logs and incoming messages",
             "method": "fetchLogs",
             "cron_frequency": "1800",
             "cron_max_run_time": "300"
+        }
+    ],
+    "auth-ajax-actions": [
+        "acknowledgePhiWarning",
+        "updateTaskStatus",
+        "syncNow",
+        "getLogs"
+    ],
+    "system-settings": [
+        {
+            "key": "max-projects-per-cron",
+            "name": "Max Projects per Cron Run",
+            "type": "text"
+        },
+        {
+            "key": "max-messages-per-fetch",
+            "name": "Max Messages per Batch per Direction",
+            "type": "text"
+        }
+    ],
+    "project-settings": [
+        {
+            "key": "phone-fields",
+            "name": "<b>Additional Phone Number Field(s) for Record Matching</b><br>The designated SMS field in Project Setup is used automatically. Add any secondary or alternative phone fields here.",
+            "type": "field-list",
+            "repeatable": true
+        },
+        {
+            "key": "default-lookback-days",
+            "name": "<b>Initial Lookback Period (days)</b>",
+            "type": "dropdown",
+            "choices": [
+                {
+                    "value": "1",
+                    "name": "1 day"
+                },
+                {
+                    "value": "3",
+                    "name": "3 days"
+                },
+                {
+                    "value": "7",
+                    "name": "7 days"
+                },
+                {
+                    "value": "14",
+                    "name": "14 days"
+                },
+                {
+                    "value": "30",
+                    "name": "30 days"
+                }
+            ]
         }
     ]
 }

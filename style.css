@@ -1,0 +1,181 @@
+/* Twilio Logs Module Stylesheet */
+
+.twilio-logs-container {
+    max-width: 1700px;
+    margin: 0 auto;
+}
+
+.twilio-metric-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1.15rem 1.25rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.twilio-metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.twilio-metric-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+}
+
+.metric-open {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.metric-stop {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.metric-failed {
+    background-color: #fce7f3;
+    color: #db2777;
+}
+
+.metric-inbound {
+    background-color: #e0e7ff;
+    color: #4f46e5;
+}
+
+.metric-sync {
+    background-color: #ecfdf5;
+    color: #059669;
+}
+
+.table-twilio-logs thead th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.table-twilio-logs tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.table-twilio-logs tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.table-twilio-logs td {
+    vertical-align: middle;
+    font-size: 0.92rem;
+}
+
+.badge-task-open {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+}
+
+.badge-task-resolved {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #86efac;
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+}
+
+.badge-type-stop {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+}
+
+.badge-type-inbound {
+    background-color: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+}
+
+.badge-type-failed {
+    background-color: #ffe4e6;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+}
+
+.copy-phone-btn {
+    cursor: pointer;
+    color: #64748b;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.copy-phone-btn:hover {
+    color: #0f172a;
+    background-color: #e2e8f0;
+}
+
+.message-body-box {
+    max-width: 380px;
+    word-break: break-word;
+    font-family: inherit;
+    line-height: 1.4;
+}
+
+.notes-preview {
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-style: italic;
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.filter-btn-group .btn.active {
+    font-weight: 600;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.phi-warning-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.85);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+}
+
+.phi-warning-card {
+    background: #ffffff;
+    border-radius: 12px;
+    max-width: 620px;
+    width: 100%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.twilio-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10050;
+    min-width: 320px;
+}
