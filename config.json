@@ -22,7 +22,7 @@
     },
     "crons": [
         {
-            "cron_name": "FetchTwilioLogs",
+            "cron_name": "fetch_twilio_logs",
             "cron_description": "Fetch Twilio failed message logs and incoming messages",
             "method": "fetchLogs",
             "cron_frequency": "1800",
