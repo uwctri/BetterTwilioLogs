@@ -373,14 +373,15 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function getProjectLogs(int $projectId, int $limit = 500): array
     {
         $this->setProjectId($projectId);
+        $limitInt = max(1, (int)$limit);
         $pseudoSql = "
             SELECT log_id,
                    timestamp,
                    message,
                    message_sid,
                    direction,
-                   from,
-                   to,
+                   `from`,
+                   `to`,
                    body,
                    status,
                    is_stop,
@@ -388,11 +389,11 @@ class BetterTwilioLogs extends AbstractExternalModule
                    error_code,
                    error_message
             ORDER BY log_id DESC
-            LIMIT ?
+            LIMIT {$limitInt}
         ";
 
         $logs = [];
-        $result = $this->queryLogs($pseudoSql, [$limit]);
+        $result = $this->queryLogs($pseudoSql, []);
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $logs[] = $row;
