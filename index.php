@@ -5,8 +5,8 @@ use UWMadison\BetterTwilioLogs\BetterTwilioLogs;
 
 /** @var BetterTwilioLogs $module */
 
-$projectId = (int)($_GET['pid'] ?? $module->getProjectId());
-$username = (string)(ExternalModules::getUsername() ?: ($module->getUser() ? $module->getUser()->getUsername() : (defined('USERID') ? USERID : '')));
+$project_id = (int)($_GET['pid'] ?? $module->getProjectId());
+$user_id = USERID;
 
 $module->initializeJavascriptModuleObject();
 
@@ -16,7 +16,7 @@ $twilioConfig = $module->query("
            twilio_from_number
     FROM   redcap_projects
     WHERE  project_id = ?
-", [$projectId]);
+", [$project_id]);
 
 $isTwilioConfigured = false;
 $twilioFromNumber = '';
@@ -28,12 +28,12 @@ if ($twilioConfig && $twilioConfig->num_rows > 0) {
     $twilioFromNumber = $tRow['twilio_from_number'] ?? '';
 }
 
-$hasAcknowledgedPhi = $module->hasUserAcknowledgedPhi($projectId, $username);
-$lastFetchDatetime = $module->getProjectSetting('last_fetch_datetime', $projectId) ?? 'Never';
-$phoneMap = $module->getPhoneToRecordMap($projectId);
-$resolutions = $module->getTaskResolutions($projectId);
-$logs = $module->getProjectLogs($projectId);
-$initialPerPage = $module->getUserPerPage($projectId, $username);
+$hasAcknowledgedPhi = $module->hasUserAcknowledgedPhi($project_id, $user_id);
+$lastFetchDatetime = $module->getProjectSetting('last_fetch_datetime', $project_id) ?? 'Never';
+$phoneMap = $module->getPhoneToRecordMap($project_id);
+$resolutions = $module->getTaskResolutions($project_id);
+$logs = $module->getProjectLogs($project_id);
+$initialPerPage = $module->getUserPerPage($project_id, $user_id);
 
 // Friendly Twilio error codes
 $knownErrors = [
@@ -78,7 +78,7 @@ $knownErrors = [
                     </div>
                 </div>
                 <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                    <a href="<?= APP_PATH_WEBROOT ?>index.php?pid=<?= $projectId ?>" class="btn btn-outline-secondary">
+                    <a href="<?= APP_PATH_WEBROOT ?>index.php?pid=<?= $project_id ?>" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i> Return to Project
                     </a>
                     <button type="button" id="btnAckPhi" class="btn btn-danger">
@@ -129,7 +129,7 @@ $knownErrors = [
                 <p class="text-secondary mb-2">
                     Twilio is either not enabled or missing credentials for this project. To fetch SMS logs, configure your Twilio Account SID, Auth Token, and From Number in project settings.
                 </p>
-                <a href="<?= APP_PATH_WEBROOT ?>ProjectSetup/index.php?pid=<?= $projectId ?>" class="btn btn-sm btn-outline-primary">
+                <a href="<?= APP_PATH_WEBROOT ?>ProjectSetup/index.php?pid=<?= $project_id ?>" class="btn btn-sm btn-outline-primary">
                     <i class="fas fa-cog me-1"></i> Go to Project Setup
                 </a>
             </div>
@@ -375,7 +375,7 @@ $knownErrors = [
                         <td>
                             <?php if ($recordId !== null): ?>
                                 <?php $matchField = $matchedRecord['field_name'] ?? ''; ?>
-                                <a href="<?= APP_PATH_WEBROOT ?>DataEntry/record_home.php?pid=<?= $projectId ?>&arm=1&id=<?= urlencode($recordId) ?>" 
+                                <a href="<?= APP_PATH_WEBROOT ?>DataEntry/record_home.php?pid=<?= $project_id ?>&arm=1&id=<?= urlencode($recordId) ?>" 
                                    target="_blank" 
                                    class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" 
                                    title="Record <?= htmlspecialchars($recordId) ?><?= !empty($matchField) ? ' (matched on ' . htmlspecialchars($matchField) . ')' : '' ?>">
@@ -527,6 +527,6 @@ $knownErrors = [
 
 <!-- Javascript -->
 <script>
-    ExternalModules.UWMadison.BetterTwilioLogs.currentUsername = <?= json_encode($username) ?>;
+    ExternalModules.UWMadison.BetterTwilioLogs.currentUsername = <?= json_encode($user_id) ?>;
 </script>
 <script src="<?= htmlspecialchars($module->getUrl('main.js')) ?>"></script>

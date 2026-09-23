@@ -3,7 +3,6 @@
 namespace UWMadison\BetterTwilioLogs;
 
 use ExternalModules\AbstractExternalModule;
-use ExternalModules\ExternalModules;
 use Generator;
 use REDCap;
 use RuntimeException;
@@ -35,12 +34,12 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function redcap_module_system_enable($version)
     {
         $maxProjects = $this->getSystemSetting('max-projects-per-cron');
-        if ($maxProjects === null || $maxProjects === '') {
+        if (empty($maxProjects)) {
             $this->setSystemSetting('max-projects-per-cron', '10');
         }
 
         $maxBatch = $this->getSystemSetting('max-messages-per-fetch');
-        if ($maxBatch === null || $maxBatch === '') {
+        if (empty($maxBatch)) {
             $this->setSystemSetting('max-messages-per-fetch', '100');
         }
     }
@@ -48,23 +47,23 @@ class BetterTwilioLogs extends AbstractExternalModule
     // Project enable hook
     public function redcap_module_project_enable($version, $project_id)
     {
-        $pid = (int)$project_id;
-        $lookback = $this->getProjectSetting('default-lookback-days', $pid);
-        if ($lookback === null || $lookback === '') {
-            $this->setProjectSetting('default-lookback-days', '1', $pid);
+        $project_id = (int)$project_id;
+        $lookback = $this->getProjectSetting('default-lookback-days', $project_id);
+        if (empty($lookback)) {
+            $this->setProjectSetting('default-lookback-days', '1', $project_id);
         }
     }
 
     // Handle AJAX actions
     public function redcap_module_ajax($action, $payload, $project_id, $record, $instrument, $event_id, $repeat_instance, $survey_hash, $response_id, $survey_queue_hash, $page, $page_full, $user_id, $group_id)
     {
-        $projectId = (int)$project_id;
+        $project_id = (int)$project_id;
         $payload = is_array($payload) ? $payload : [];
-        $username = (string)($user_id ?: ExternalModules::getUsername() ?: ($this->getUser() ? $this->getUser()->getUsername() : (defined('USERID') ? USERID : ($payload['username'] ?? ''))));
+        $user_id = (string)$user_id;
 
         switch ($action) {
             case 'acknowledgePhiWarning':
-                $this->setUserAcknowledgedPhi($projectId, $username);
+                $this->setUserAcknowledgedPhi($project_id, $user_id);
                 return [
                     'success'   => true,
                     'timestamp' => date('Y-m-d H:i:s')
@@ -77,7 +76,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 if (empty($logId)) {
                     return ['success' => false, 'message' => 'Missing log_id'];
                 }
-                $task = $this->setTaskResolution($projectId, $logId, $status, $notes, $username);
+                $task = $this->setTaskResolution($project_id, $logId, $status, $notes, $user_id);
                 return [
                     'success' => true,
                     'task'    => $task
@@ -87,20 +86,20 @@ class BetterTwilioLogs extends AbstractExternalModule
                 $customLookback = !empty($payload['lookback_days']) ? (int)$payload['lookback_days'] : null;
                 $phase = !empty($payload['phase']) ? (string)$payload['phase'] : 'inbound';
                 $nextPageUrl = !empty($payload['next_page_url']) ? (string)$payload['next_page_url'] : null;
-                return $this->syncProjectLogsChunk($projectId, $customLookback, $phase, $nextPageUrl);
+                return $this->syncProjectLogsChunk($project_id, $customLookback, $phase, $nextPageUrl);
 
             case 'getLogs':
                 return [
                     'success'     => true,
-                    'logs'        => $this->getProjectLogs($projectId),
-                    'resolutions' => $this->getTaskResolutions($projectId),
-                    'phone_map'   => $this->getPhoneToRecordMap($projectId)
+                    'logs'        => $this->getProjectLogs($project_id),
+                    'resolutions' => $this->getTaskResolutions($project_id),
+                    'phone_map'   => $this->getPhoneToRecordMap($project_id)
                 ];
 
             case 'savePerPage':
                 $perPage = (int)($payload['per_page'] ?? 20);
                 if ($perPage > 0) {
-                    $this->setUserPerPage($projectId, $username, $perPage);
+                    $this->setUserPerPage($project_id, $user_id, $perPage);
                     return ['success' => true, 'per_page' => $perPage];
                 }
                 return ['success' => false, 'message' => 'Invalid per_page value'];
@@ -122,13 +121,13 @@ class BetterTwilioLogs extends AbstractExternalModule
         }
 
         $candidates = [];
-        foreach ($enabledProjects as $pid) {
-            $pid = (int)$pid;
-            $res = $this->query($this->sql, [$pid]);
+        foreach ($enabledProjects as $project_id) {
+            $project_id = (int)$project_id;
+            $res = $this->query($this->sql, [$project_id]);
             if ($res && $res->num_rows > 0) {
-                $lastFetch = $this->getProjectSetting('last_fetch_time', $pid);
+                $lastFetch = $this->getProjectSetting('last_fetch_time', $project_id);
                 $candidates[] = [
-                    'project_id' => $pid,
+                    'project_id' => $project_id,
                     'last_fetch' => !empty($lastFetch) ? (int)$lastFetch : 0
                 ];
             }
@@ -153,8 +152,8 @@ class BetterTwilioLogs extends AbstractExternalModule
         $totalOutbound = 0;
 
         foreach ($toProcess as $item) {
-            $pid = $item['project_id'];
-            $result = $this->syncProjectLogs($pid);
+            $project_id = (int)$item['project_id'];
+            $result = $this->syncProjectLogs($project_id);
             if ($result['success']) {
                 $processedCount++;
                 $totalInbound += $result['inbound_count'] ?? 0;
@@ -167,14 +166,14 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Sync all messages within lookback window for a project
-    public function syncProjectLogs(int $projectId, ?int $customLookbackDays = null): array
+    public function syncProjectLogs(int $project_id, ?int $customLookbackDays = null): array
     {
-        $this->setProjectId($projectId);
-        $results = $this->query($this->sql, [$projectId]);
+        $this->setProjectId($project_id);
+        $results = $this->query($this->sql, [$project_id]);
         if (!$results || $results->num_rows === 0) {
             return [
                 'success' => false,
-                'message' => "Project #{$projectId} does not have valid Twilio credentials or Twilio is not enabled."
+                'message' => "Project #{$project_id} does not have valid Twilio credentials or Twilio is not enabled."
             ];
         }
 
@@ -186,11 +185,11 @@ class BetterTwilioLogs extends AbstractExternalModule
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
         } else {
-            $lastFetch = $this->getProjectSetting('last_fetch_time', $projectId);
+            $lastFetch = $this->getProjectSetting('last_fetch_time', $project_id);
             if (!empty($lastFetch) && is_numeric($lastFetch)) {
                 $startTimestamp = (int)$lastFetch;
             } else {
-                $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $projectId);
+                $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $project_id);
                 if ($defaultDays <= 0) {
                     $defaultDays = 1;
                 }
@@ -204,7 +203,7 @@ class BetterTwilioLogs extends AbstractExternalModule
             $maxBatch = 100;
         }
 
-        $existingSids = $this->getExistingLoggedSids($projectId);
+        $existingSids = $this->getExistingLoggedSids($project_id);
         $inboundCount = 0;
         $outboundCount = 0;
 
@@ -226,7 +225,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 $logTitle = $isStop ? "Received STOP request" : "Received message from participant";
 
                 $this->log($logTitle, [
-                    'project_id'    => $projectId,
+                    'project_id'    => $project_id,
                     'message_sid'   => $sid,
                     'direction'     => 'inbound',
                     'from'          => $msg['from'] ?? 'Unknown',
@@ -264,7 +263,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 }
 
                 $this->log("Failed outbound message", [
-                    'project_id'    => $projectId,
+                    'project_id'    => $project_id,
                     'message_sid'   => $sid,
                     'direction'     => 'outbound',
                     'from'          => $msg['from'] ?? $twilio_from_number,
@@ -285,8 +284,8 @@ class BetterTwilioLogs extends AbstractExternalModule
             }
 
             $now = time();
-            $this->setProjectSetting('last_fetch_time', $now, $projectId);
-            $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $projectId);
+            $this->setProjectSetting('last_fetch_time', $now, $project_id);
+            $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $project_id);
 
             return [
                 'success'        => true,
@@ -303,14 +302,14 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Sync a single page chunk of Twilio messages
-    public function syncProjectLogsChunk(int $projectId, ?int $customLookbackDays = null, string $phase = 'inbound', ?string $nextPageUrl = null): array
+    public function syncProjectLogsChunk(int $project_id, ?int $customLookbackDays = null, string $phase = 'inbound', ?string $nextPageUrl = null): array
     {
-        $this->setProjectId($projectId);
-        $results = $this->query($this->sql, [$projectId]);
+        $this->setProjectId($project_id);
+        $results = $this->query($this->sql, [$project_id]);
         if (!$results || $results->num_rows === 0) {
             return [
                 'success' => false,
-                'message' => "Project #{$projectId} does not have valid Twilio credentials or Twilio is not enabled."
+                'message' => "Project #{$project_id} does not have valid Twilio credentials or Twilio is not enabled."
             ];
         }
 
@@ -322,7 +321,7 @@ class BetterTwilioLogs extends AbstractExternalModule
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
         } else {
-            $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $projectId);
+            $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $project_id);
             if ($defaultDays <= 0) {
                 $defaultDays = 1;
             }
@@ -349,7 +348,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 $loggedCount = 0;
 
                 $batchSids = array_filter(array_column($messages, 'sid'));
-                $existingSids = $this->getExistingSidsInBatch($projectId, $batchSids);
+                $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
 
                 foreach ($messages as $msg) {
                     $sid = $msg['sid'] ?? '';
@@ -362,7 +361,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                     $logTitle = $isStop ? "Received STOP request" : "Received message from participant";
 
                     $this->log($logTitle, [
-                        'project_id'    => $projectId,
+                        'project_id'    => $project_id,
                         'message_sid'   => $sid,
                         'direction'     => 'inbound',
                         'from'          => $msg['from'] ?? 'Unknown',
@@ -414,7 +413,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 $loggedCount = 0;
 
                 $batchSids = array_filter(array_column($messages, 'sid'));
-                $existingSids = $this->getExistingSidsInBatch($projectId, $batchSids);
+                $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
 
                 foreach ($messages as $msg) {
                     $status = strtoupper($msg['status'] ?? '');
@@ -428,7 +427,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                     }
 
                     $this->log("Failed outbound message", [
-                        'project_id'    => $projectId,
+                        'project_id'    => $project_id,
                         'message_sid'   => $sid,
                         'direction'     => 'outbound',
                         'from'          => $msg['from'] ?? $twilio_from_number,
@@ -456,8 +455,8 @@ class BetterTwilioLogs extends AbstractExternalModule
                     ];
                 } else {
                     $now = time();
-                    $this->setProjectSetting('last_fetch_time', $now, $projectId);
-                    $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $projectId);
+                    $this->setProjectSetting('last_fetch_time', $now, $project_id);
+                    $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $project_id);
 
                     return [
                         'success'       => true,
@@ -477,9 +476,9 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Retrieve all message SIDs already logged for this project
-    public function getExistingLoggedSids(int $projectId): array
+    public function getExistingLoggedSids(int $project_id): array
     {
-        $this->setProjectId($projectId);
+        $this->setProjectId($project_id);
         $sids = [];
         $result = $this->queryLogs("
             SELECT message_sid
@@ -498,14 +497,14 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Retrieve subset of message SIDs that already exist in project logs
-    public function getExistingSidsInBatch(int $projectId, array $sids): array
+    public function getExistingSidsInBatch(int $project_id, array $sids): array
     {
         $sids = array_values(array_filter(array_unique($sids)));
         if (empty($sids)) {
             return [];
         }
 
-        $this->setProjectId($projectId);
+        $this->setProjectId($project_id);
         $placeholders = implode(',', array_fill(0, count($sids), '?'));
         $pseudoSql = "
             SELECT message_sid
@@ -523,7 +522,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 }
             }
         } catch (Throwable $e) {
-            $all = $this->getExistingLoggedSids($projectId);
+            $all = $this->getExistingLoggedSids($project_id);
             foreach ($sids as $s) {
                 if (isset($all[$s])) {
                     $existing[$s] = true;
@@ -535,9 +534,9 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Retrieve all Twilio logs stored for the current project
-    public function getProjectLogs(int $projectId, ?int $limit = null): array
+    public function getProjectLogs(int $project_id, ?int $limit = null): array
     {
-        $this->setProjectId($projectId);
+        $this->setProjectId($project_id);
         $limitClause = '';
         if ($limit !== null && $limit > 0) {
             $limitInt = (int)$limit;
@@ -594,13 +593,13 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Get designated SMS field from project setup
-    public function getDesignatedSmsField(int $projectId): string
+    public function getDesignatedSmsField(int $project_id): string
     {
         $res = $this->query("
             SELECT survey_phone_participant_field
             FROM redcap_projects
             WHERE project_id = ?
-        ", [$projectId]);
+        ", [$project_id]);
 
         if ($res && $row = $res->fetch_assoc()) {
             return trim((string)($row['survey_phone_participant_field'] ?? ''));
@@ -610,16 +609,16 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Map phone numbers to record IDs
-    public function getPhoneToRecordMap(int $projectId): array
+    public function getPhoneToRecordMap(int $project_id): array
     {
         static $cache = [];
-        if (isset($cache[$projectId])) {
-            return $cache[$projectId];
+        if (isset($cache[$project_id])) {
+            return $cache[$project_id];
         }
 
-        $recordIdField = $this->getRecordIdField($projectId);
-        $designatedField = $this->getDesignatedSmsField($projectId);
-        $additionalFields = $this->getProjectSetting('phone-fields', $projectId);
+        $recordIdField = $this->getRecordIdField($project_id);
+        $designatedField = $this->getDesignatedSmsField($project_id);
+        $additionalFields = $this->getProjectSetting('phone-fields', $project_id);
 
         $fields = [];
         if (!empty($designatedField)) {
@@ -647,7 +646,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                       OR field_name LIKE '%mobile%' 
                       OR field_name LIKE '%cell%'
                   )
-            ", [$projectId]);
+            ", [$project_id]);
 
             if ($res) {
                 while ($r = $res->fetch_assoc()) {
@@ -658,14 +657,14 @@ class BetterTwilioLogs extends AbstractExternalModule
 
         $fields = array_values(array_unique(array_filter($fields)));
         if (empty($fields)) {
-            $cache[$projectId] = [];
+            $cache[$project_id] = [];
             return [];
         }
 
-        $dataTable = REDCap::getDataTable($projectId);
+        $dataTable = REDCap::getDataTable($project_id);
         $map = [];
         $placeholders = implode(',', array_fill(0, count($fields), '?'));
-        $params = array_merge([$projectId], $fields);
+        $params = array_merge([$project_id], $fields);
 
         try {
             $result = $this->query("
@@ -697,12 +696,12 @@ class BetterTwilioLogs extends AbstractExternalModule
             }
         } catch (Throwable $e) {
             $fieldsToPull = array_unique(array_merge([$recordIdField], $fields));
-            $data = REDCap::getData($projectId, 'array', null, $fieldsToPull);
+            $data = REDCap::getData($project_id, 'array', null, $fieldsToPull);
             if (is_array($data)) {
                 foreach ($data as $recordId => $recordEvents) {
                     foreach ($recordEvents as $eventId => $eventData) {
-                        $instances = isset($eventData['repeat_instances']) 
-                            ? $eventData['repeat_instances'] 
+                        $instances = isset($eventData['repeat_instances'])
+                            ? $eventData['repeat_instances']
                             : [0 => [0 => $eventData]];
 
                         foreach ($instances as $instRows) {
@@ -729,20 +728,20 @@ class BetterTwilioLogs extends AbstractExternalModule
             }
         }
 
-        $cache[$projectId] = $map;
+        $cache[$project_id] = $map;
         return $map;
     }
 
     // Retrieve stored task resolutions for a project
-    public function getTaskResolutions(int $projectId): array
+    public function getTaskResolutions(int $project_id): array
     {
         $resolutions = [];
-        $legacy = $this->getProjectSetting('task_resolutions', $projectId);
+        $legacy = $this->getProjectSetting('task_resolutions', $project_id);
         if (is_array($legacy)) {
             $resolutions = $legacy;
         }
 
-        $allSettings = $this->getProjectSettings($projectId);
+        $allSettings = $this->getProjectSettings($project_id);
         if (is_array($allSettings)) {
             foreach ($allSettings as $key => $val) {
                 if (strpos($key, 'task_res_') === 0 && is_array($val)) {
@@ -756,65 +755,53 @@ class BetterTwilioLogs extends AbstractExternalModule
     }
 
     // Update resolution status and notes for a specific log item
-    public function setTaskResolution(int $projectId, $logId, string $status, string $notes, string $username = ''): array
+    public function setTaskResolution(int $project_id, $logId, string $status, string $notes, string $user_id): array
     {
         $logIdKey = (string)$logId;
-        $resolvedUser = trim($username);
-        if (empty($resolvedUser) || $resolvedUser === 'unknown') {
-            $resolvedUser = (string)(ExternalModules::getUsername() ?: ($this->getUser() ? $this->getUser()->getUsername() : (defined('USERID') ? USERID : 'unknown')));
-        }
 
         $task = [
             'status'     => ($status === 'resolved') ? 'resolved' : 'open',
             'notes'      => trim($notes),
-            'updated_by' => $resolvedUser,
+            'updated_by' => trim($user_id),
             'updated_at' => date('Y-m-d H:i:s')
         ];
 
-        $this->setProjectSetting('task_res_' . $logIdKey, $task, $projectId);
+        $this->setProjectSetting('task_res_' . $logIdKey, $task, $project_id);
 
-        $legacy = $this->getProjectSetting('task_resolutions', $projectId);
+        $legacy = $this->getProjectSetting('task_resolutions', $project_id);
         if (is_array($legacy) && isset($legacy[$logIdKey])) {
             unset($legacy[$logIdKey]);
-            $this->setProjectSetting('task_resolutions', $legacy, $projectId);
+            $this->setProjectSetting('task_resolutions', $legacy, $project_id);
         }
 
         return $task;
     }
 
     // Check PHI acknowledgement
-    public function hasUserAcknowledgedPhi(int $projectId, string $username): bool
+    public function hasUserAcknowledgedPhi(int $project_id, string $user_id): bool
     {
-        if (empty($username)) {
-            return false;
-        }
-        $ack = $this->getProjectSetting('phi_ack_' . $username, $projectId);
+        $ack = $this->getProjectSetting('phi_ack_' . $user_id, $project_id);
         return !empty($ack);
     }
 
     // Record PHI acknowledgement
-    public function setUserAcknowledgedPhi(int $projectId, string $username): void
+    public function setUserAcknowledgedPhi(int $project_id, string $user_id): void
     {
-        if (!empty($username)) {
-            $this->setProjectSetting('phi_ack_' . $username, date('Y-m-d H:i:s'), $projectId);
-        }
+        $this->setProjectSetting('phi_ack_' . $user_id, date('Y-m-d H:i:s'), $project_id);
     }
 
     // Get user per-page preference
-    public function getUserPerPage(int $projectId, string $username): int
+    public function getUserPerPage(int $project_id, string $user_id): int
     {
-        if (empty($username)) {
-            return 20;
-        }
-        $val = (int)$this->getProjectSetting('per_page_' . $username, $projectId);
+        $val = (int)$this->getProjectSetting('per_page_' . $user_id, $project_id);
         return ($val > 0) ? $val : 20;
     }
 
     // Save user per-page preference
-    public function setUserPerPage(int $projectId, string $username, int $perPage): void
+    public function setUserPerPage(int $project_id, string $user_id, int $per_page): void
     {
-        if (!empty($username) && $perPage > 0) {
-            $this->setProjectSetting('per_page_' . $username, $perPage, $projectId);
+        if ($per_page > 0) {
+            $this->setProjectSetting('per_page_' . $user_id, $per_page, $project_id);
         }
     }
 
