@@ -28,17 +28,15 @@
             </div>`;
 
         let $toastContainer = $('#twilioToastContainer');
-        if ($toastContainer.length === 0) {
+        if ($toastContainer.length === 0)
             $toastContainer = $('<div id="twilioToastContainer" class="twilio-toast"></div>').appendTo('body');
-        }
 
         const maxToasts = 2;
         const $existing = $toastContainer.children('.toast');
-        if ($existing.length >= maxToasts) {
+        if ($existing.length >= maxToasts)
             $existing.slice(0, $existing.length - maxToasts + 1).each((_, el) => {
                 $(el).stop(true, true).fadeOut(200, () => $(el).remove());
             });
-        }
 
         const $toast = $(toastHtml).appendTo($toastContainer);
 
@@ -71,9 +69,8 @@
         const originalHtml = '<i class="fas fa-sync-alt me-1"></i> Sync Now';
 
         const btnWidth = $btn.outerWidth();
-        if (btnWidth > 0) {
+        if (btnWidth > 0)
             $btn.css('width', btnWidth + 'px');
-        }
         $btn.prop('disabled', true);
 
         let totalInbound = 0;
@@ -95,26 +92,24 @@
 
                 const batchCount = res.batch_logged || 0;
                 totalLogged += batchCount;
-                if (res.phase === 'inbound') {
+                if (res.phase === 'inbound')
                     totalInbound += batchCount;
-                } else {
+                else
                     totalOutbound += batchCount;
-                }
 
                 if (res.has_more) {
                     step(res.phase, res.next_page_url || null);
-                } else {
-                    $btn.prop('disabled', false).html(originalHtml).css('width', '');
-                    let summaryMsg = `Sync complete! ${totalLogged} new item(s) logged (${totalInbound} inbound, ${totalOutbound} outbound).`;
-                    if (totalLogged === 0) {
-                        summaryMsg = 'Sync complete! All messages in lookback window are up to date.';
-                    }
-                    showToast(summaryMsg, 'success');
-                    if (res.last_fetch) {
-                        $('#lastSyncBadge').text(res.last_fetch);
-                    }
-                    setTimeout(() => window.location.reload(), 1200);
+                    return;
                 }
+
+                $btn.prop('disabled', false).html(originalHtml).css('width', '');
+                let summaryMsg = `Sync complete! ${totalLogged} new item(s) logged (${totalInbound} inbound, ${totalOutbound} outbound).`;
+                if (totalLogged === 0)
+                    summaryMsg = 'Sync complete! All messages in lookback window are up to date.';
+                showToast(summaryMsg, 'success');
+                if (res.last_fetch)
+                    $('#lastSyncBadge').text(res.last_fetch);
+                setTimeout(() => window.location.reload(), 1200);
             }).catch((err) => {
                 $btn.prop('disabled', false).html(originalHtml).css('width', '');
                 showToast('Error syncing with Twilio: ' + (err.message || err), 'error');
@@ -182,41 +177,38 @@
         $list.append($prev);
 
         const pages = [];
-        if (totalPages <= 7) {
-            for (let i = 1; i <= totalPages; i++) {
+        if (totalPages <= 7)
+            for (let i = 1; i <= totalPages; i++)
                 pages.push(i);
-            }
-        } else {
+        else {
             pages.push(1);
-            if (currentPage > 3) {
+            if (currentPage > 3)
                 pages.push('...');
-            }
             const startPage = Math.max(2, currentPage - 1);
             const endPage = Math.min(totalPages - 1, currentPage + 1);
-            for (let p = startPage; p <= endPage; p++) {
+            for (let p = startPage; p <= endPage; p++)
                 pages.push(p);
-            }
-            if (currentPage < totalPages - 2) {
+            if (currentPage < totalPages - 2)
                 pages.push('...');
-            }
             pages.push(totalPages);
         }
 
         $.each(pages, (_, p) => {
             if (p === '...') {
                 $list.append('<li class="page-item disabled"><span class="page-link">&hellip;</span></li>');
-            } else {
-                const activeClass = (p === currentPage) ? ' active' : '';
-                const $li = $(`<li class="page-item${activeClass}"><a class="page-link" href="#">${p}</a></li>`);
-                $li.find('a').on('click', (e) => {
-                    e.preventDefault();
-                    if (currentPage !== p) {
-                        currentPage = p;
-                        applyFilters();
-                    }
-                });
-                $list.append($li);
+                return;
             }
+
+            const activeClass = (p === currentPage) ? ' active' : '';
+            const $li = $(`<li class="page-item${activeClass}"><a class="page-link" href="#">${p}</a></li>`);
+            $li.find('a').on('click', (e) => {
+                e.preventDefault();
+                if (currentPage !== p) {
+                    currentPage = p;
+                    applyFilters();
+                }
+            });
+            $list.append($li);
         });
 
         const nextDisabled = (currentPage === totalPages) ? ' disabled' : '';
@@ -246,53 +238,46 @@
             const matchMatch = (activeMatchFilter === 'all') || (activeMatchFilter === 'matched' && rowRecord !== '');
             const textMatch = (searchTerm === '') || (searchableText.indexOf(searchTerm) !== -1);
 
-            if (statusMatch && typeMatch && matchMatch && textMatch) {
+            if (statusMatch && typeMatch && matchMatch && textMatch)
                 matchedRows.push($row);
-            } else {
+            else
                 $row.hide();
-            }
         });
 
         const totalMatched = matchedRows.length;
         const totalPages = Math.max(1, Math.ceil(totalMatched / perPage));
-        if (currentPage > totalPages) {
+        if (currentPage > totalPages)
             currentPage = totalPages;
-        }
-        if (currentPage < 1) {
+        if (currentPage < 1)
             currentPage = 1;
-        }
 
         const startIndex = (currentPage - 1) * perPage;
         const endIndex = startIndex + perPage;
 
         $.each(matchedRows, (idx, $row) => {
-            if (idx >= startIndex && idx < endIndex) {
+            if (idx >= startIndex && idx < endIndex)
                 $row.show();
-            } else {
+            else
                 $row.hide();
-            }
         });
 
-        if (totalMatched === 0) {
-            if ($('#initialEmptyRow').length) {
-                $('#initialEmptyRow').css('display', 'table-row');
-                $('#noLogsRow').hide();
-            } else {
-                $('#noLogsRow').css('display', 'table-row');
-            }
-        } else {
+        if (totalMatched > 0) {
             $('#noLogsRow').hide();
             $('#initialEmptyRow').hide();
-        }
+        } else if ($('#initialEmptyRow').length) {
+            $('#initialEmptyRow').css('display', 'table-row');
+            $('#noLogsRow').hide();
+        } else
+            $('#noLogsRow').css('display', 'table-row');
 
         $('#visibleCountBadge').text(totalMatched);
         renderPagination(totalMatched);
     };
 
     const sortTable = (column) => {
-        if (currentSort.column === column) {
+        if (currentSort.column === column)
             currentSort.direction = (currentSort.direction === 'asc') ? 'desc' : 'asc';
-        } else {
+        else {
             currentSort.column = column;
             currentSort.direction = (column === 'timestamp') ? 'desc' : 'asc';
         }
@@ -336,12 +321,10 @@
         const $tbody = $('#twilioLogsTable tbody');
         $.each($rows, (_, row) => $tbody.append(row));
 
-        if ($('#noLogsRow').length) {
+        if ($('#noLogsRow').length)
             $tbody.append($('#noLogsRow'));
-        }
-        if ($('#initialEmptyRow').length) {
+        if ($('#initialEmptyRow').length)
             $tbody.append($('#initialEmptyRow'));
-        }
 
         applyFilters();
     };
@@ -369,39 +352,41 @@
                 .attr('onclick', `ExternalModules.UWMadison.BetterTwilioLogs.toggleStatus('${logId}', 'resolved')`);
         }
 
-        if (task) {
-            if (typeof task.notes !== 'undefined') {
-                $row.attr('data-notes', task.notes);
-                const $notesPreview = $row.find('.notes-preview');
-                if (task.notes) {
-                    $notesPreview.text(task.notes).attr('title', task.notes);
-                } else {
-                    $notesPreview.html('<span class="text-muted opacity-75">No notes</span>').removeAttr('title');
-                }
-            }
+        if (!task) {
+            updateMetrics();
+            applyFilters();
+            return;
+        }
 
-            if (task.updated_by) {
-                let displayDate = '';
-                if (task.updated_at) {
-                    const parts = task.updated_at.split(/[- :]/);
-                    if (parts.length >= 3) {
-                        const yy = parts[0].length === 4 ? parts[0].substring(2) : parts[0];
-                        displayDate = `${parts[1]}/${parts[2]}/${yy}`;
-                    } else {
-                        displayDate = task.updated_at;
-                    }
-                }
-                const userEscaped = $('<div>').text(task.updated_by).html();
-                const dateEscaped = $('<div>').text(displayDate).html();
-                const auditHtml = userEscaped + (displayDate ? ' &bull; ' + dateEscaped : '');
+        if (typeof task.notes !== 'undefined') {
+            $row.attr('data-notes', task.notes);
+            const $notesPreview = $row.find('.notes-preview');
+            if (task.notes)
+                $notesPreview.text(task.notes).attr('title', task.notes);
+            else
+                $notesPreview.html('<span class="text-muted opacity-75">No notes</span>').removeAttr('title');
+        }
 
-                let $audit = $row.find('.task-audit-trail');
-                if ($audit.length === 0) {
-                    $row.find('.notes-cell').append('<small class="text-muted d-block task-audit-trail" style="font-size: 0.75rem;"></small>');
-                    $audit = $row.find('.task-audit-trail');
-                }
-                $audit.html(auditHtml).show();
+        if (task.updated_by) {
+            let displayDate = '';
+            if (task.updated_at) {
+                const parts = task.updated_at.split(/[- :]/);
+                if (parts.length >= 3) {
+                    const yy = parts[0].length === 4 ? parts[0].substring(2) : parts[0];
+                    displayDate = `${parts[1]}/${parts[2]}/${yy}`;
+                } else
+                    displayDate = task.updated_at;
             }
+            const userEscaped = $('<div>').text(task.updated_by).html();
+            const dateEscaped = $('<div>').text(displayDate).html();
+            const auditHtml = userEscaped + (displayDate ? ' &bull; ' + dateEscaped : '');
+
+            let $audit = $row.find('.task-audit-trail');
+            if ($audit.length === 0) {
+                $row.find('.notes-cell').append('<small class="text-muted d-block task-audit-trail" style="font-size: 0.75rem;"></small>');
+                $audit = $row.find('.task-audit-trail');
+            }
+            $audit.html(auditHtml).show();
         }
 
         updateMetrics();
@@ -418,12 +403,12 @@
             notes: currentNotes,
             username: currentUsername || ''
         }).then((res) => {
-            if (res && res.success) {
-                updateRowStatusUI(logId, targetStatus, res.task);
-                showToast('Task marked as ' + targetStatus + '.', 'success');
-            } else {
-                showToast('Failed to update task: ' + (res.message || ''), 'error');
+            if (!res || !res.success) {
+                showToast('Failed to update task: ' + (res ? res.message : ''), 'error');
+                return;
             }
+            updateRowStatusUI(logId, targetStatus, res.task);
+            showToast('Task marked as ' + targetStatus + '.', 'success');
         }).catch((err) => {
             showToast('Error updating status: ' + (err.message || err), 'error');
         });
@@ -439,12 +424,10 @@
         $('#modalTaskNotes').val(notes);
 
         const modalElem = document.getElementById('taskNotesModal');
-        if (window.bootstrap && window.bootstrap.Modal) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalElem);
-            modal.show();
-        } else {
+        if (window.bootstrap && window.bootstrap.Modal)
+            bootstrap.Modal.getOrCreateInstance(modalElem).show();
+        else
             $('#taskNotesModal').modal('show');
-        }
     };
 
     const saveNotes = () => {
@@ -458,29 +441,29 @@
             notes: notes,
             username: currentUsername || ''
         }).then((res) => {
-            if (res && res.success) {
-                const $row = $('tr[data-log-id="' + logId + '"]');
-                $row.attr('data-notes', notes);
-                const $notesPreview = $row.find('.notes-preview');
-                if (notes) {
-                    $notesPreview.text(notes).attr('title', notes);
-                } else {
-                    $notesPreview.html('<span class="text-muted opacity-75">No notes</span>').removeAttr('title');
-                }
-                updateRowStatusUI(logId, status, res.task);
-
-                const modalElem = document.getElementById('taskNotesModal');
-                if (window.bootstrap && window.bootstrap.Modal) {
-                    const modal = bootstrap.Modal.getInstance(modalElem);
-                    if (modal) modal.hide();
-                } else {
-                    $('#taskNotesModal').modal('hide');
-                }
-
-                showToast('Notes and status saved.', 'success');
-            } else {
-                showToast('Failed to save notes: ' + (res.message || ''), 'error');
+            if (!res || !res.success) {
+                showToast('Failed to save notes: ' + (res ? res.message : ''), 'error');
+                return;
             }
+
+            const $row = $('tr[data-log-id="' + logId + '"]');
+            $row.attr('data-notes', notes);
+            const $notesPreview = $row.find('.notes-preview');
+            if (notes)
+                $notesPreview.text(notes).attr('title', notes);
+            else
+                $notesPreview.html('<span class="text-muted opacity-75">No notes</span>').removeAttr('title');
+            updateRowStatusUI(logId, status, res.task);
+
+            const modalElem = document.getElementById('taskNotesModal');
+            if (window.bootstrap && window.bootstrap.Modal) {
+                const modal = bootstrap.Modal.getInstance(modalElem);
+                if (modal)
+                    modal.hide();
+            } else
+                $('#taskNotesModal').modal('hide');
+
+            showToast('Notes and status saved.', 'success');
         }).catch((err) => {
             showToast('Error saving notes: ' + (err.message || err), 'error');
         });
@@ -508,9 +491,8 @@
                 em.ajax('savePerPage', { per_page: val }).catch(err => console.warn(err));
                 currentPage = 1;
                 applyFilters();
-            } else {
+            } else
                 $(e.currentTarget).val(perPage);
-            }
         }).on('keydown', (e) => {
             if (e.key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault();
@@ -553,9 +535,8 @@
 
         $('.sortable-header').on('click', (e) => {
             const col = $(e.currentTarget).data('sort');
-            if (col) {
+            if (col)
                 sortTable(col);
-            }
         });
 
         $('#btnSyncTwilio').on('click', () => syncNow());

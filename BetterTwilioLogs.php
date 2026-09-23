@@ -92,14 +92,12 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function redcap_module_system_enable($version)
     {
         $maxProjects = $this->getSystemSetting('max-projects-per-cron');
-        if (empty($maxProjects)) {
-            $this->setSystemSetting('max-projects-per-cron', self::DEFAULT_MAX_PROJECTS_PER_CRON);
-        }
+        if (empty($maxProjects))
+            $this->setSystemSetting('max-projects-per-cron', '10');
 
         $maxBatch = $this->getSystemSetting('max-messages-per-fetch');
-        if (empty($maxBatch)) {
-            $this->setSystemSetting('max-messages-per-fetch', self::DEFAULT_MAX_MESSAGES_PER_FETCH);
-        }
+        if (empty($maxBatch))
+            $this->setSystemSetting('max-messages-per-fetch', '100');
     }
 
     // Project enable hook
@@ -107,9 +105,8 @@ class BetterTwilioLogs extends AbstractExternalModule
     {
         $project_id = (int)$project_id;
         $lookback = $this->getProjectSetting('default-lookback-days', $project_id);
-        if (empty($lookback)) {
-            $this->setProjectSetting('default-lookback-days', self::DEFAULT_LOOKBACK_DAYS, $project_id);
-        }
+        if (empty($lookback))
+            $this->setProjectSetting('default-lookback-days', '1', $project_id);
     }
 
     // Handle AJAX actions
@@ -129,11 +126,11 @@ class BetterTwilioLogs extends AbstractExternalModule
 
             case 'updateTaskStatus':
                 $logId = $payload['log_id'];
+                if (empty($logId))
+                    return ['success' => false, 'message' => 'Missing log_id'];
+
                 $status = $payload['status'] ?: 'open';
                 $notes = (string)$payload['notes'];
-                if (empty($logId)) {
-                    return ['success' => false, 'message' => 'Missing log_id'];
-                }
                 $task = $this->setTaskResolution($project_id, $logId, $status, $notes, $user_id);
                 return [
                     'success' => true,
@@ -156,11 +153,11 @@ class BetterTwilioLogs extends AbstractExternalModule
 
             case 'savePerPage':
                 $perPage = (int)$payload['per_page'];
-                if ($perPage > 0) {
-                    $this->setUserPerPage($project_id, $user_id, $perPage);
-                    return ['success' => true, 'per_page' => $perPage];
-                }
-                return ['success' => false, 'message' => 'Invalid per_page value'];
+                if ($perPage <= 0)
+                    return ['success' => false, 'message' => 'Invalid per_page value'];
+
+                $this->setUserPerPage($project_id, $user_id, $perPage);
+                return ['success' => true, 'per_page' => $perPage];
 
             default:
                 return [
@@ -174,9 +171,8 @@ class BetterTwilioLogs extends AbstractExternalModule
     public static function cleanPhoneNumber(string $phone): string
     {
         $digits = preg_replace('/\D+/', '', $phone);
-        if (strlen($digits) === 11 && $digits[0] === '1') {
+        if (strlen($digits) === 11 && $digits[0] === '1')
             $digits = substr($digits, 1);
-        }
         return (string)$digits;
     }
 
@@ -184,23 +180,20 @@ class BetterTwilioLogs extends AbstractExternalModule
     public static function formatPhoneNumber(string $phone): string
     {
         $cleaned = self::cleanPhoneNumber($phone);
-        if (strlen($cleaned) === 10) {
+        if (strlen($cleaned) === 10)
             return sprintf("(%s) %s-%s", substr($cleaned, 0, 3), substr($cleaned, 3, 3), substr($cleaned, 6));
-        }
         return $phone;
     }
 
     // Validate and filter Twilio Account SID format
     public static function filterAccountSid(string $sid): string
     {
-        if (!preg_match('/^AC[a-zA-Z0-9]{32}$/', $sid)) {
+        if (!preg_match('/^AC[a-zA-Z0-9]{32}$/', $sid))
             return '';
-        }
 
         $clean = 'AC';
-        for ($i = 2; $i < 34; $i++) {
+        for ($i = 2; $i < 34; $i++)
             $clean .= chr(ord($sid[$i]));
-        }
 
         return $clean;
     }
@@ -209,9 +202,8 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function fetchLogs(array $config = []): string
     {
         $enabledProjects = $this->getProjectsWithModuleEnabled();
-        if (empty($enabledProjects)) {
+        if (empty($enabledProjects))
             return "No projects have Twilio Logs enabled.";
-        }
 
         $candidates = [];
         foreach ($enabledProjects as $project_id) {
@@ -226,20 +218,18 @@ class BetterTwilioLogs extends AbstractExternalModule
             }
         }
 
-        if (empty($candidates)) {
+        if (empty($candidates))
             return "No active projects with valid Twilio credentials found.";
-        }
 
         usort($candidates, function ($a, $b) {
             return $a['last_fetch'] <=> $b['last_fetch'];
         });
 
         $maxProjects = (int)$this->getSystemSetting('max-projects-per-cron');
-        if ($maxProjects <= 0) {
+        if ($maxProjects <= 0)
             $maxProjects = self::DEFAULT_MAX_PROJECTS_PER_CRON;
-        }
-        $toProcess = array_slice($candidates, 0, $maxProjects);
 
+        $toProcess = array_slice($candidates, 0, $maxProjects);
         $processedCount = 0;
         $totalInbound = 0;
         $totalOutbound = 0;
@@ -247,11 +237,12 @@ class BetterTwilioLogs extends AbstractExternalModule
         foreach ($toProcess as $item) {
             $project_id = (int)$item['project_id'];
             $result = $this->syncProjectLogs($project_id);
-            if ($result['success']) {
-                $processedCount++;
-                $totalInbound += $result['inbound_count'];
-                $totalOutbound += $result['outbound_count'];
-            }
+            if (!$result['success'])
+                continue;
+
+            $processedCount++;
+            $totalInbound += $result['inbound_count'];
+            $totalOutbound += $result['outbound_count'];
         }
 
         $cronName = $config['cron_name'];
@@ -263,24 +254,22 @@ class BetterTwilioLogs extends AbstractExternalModule
     {
         $this->setProjectId($project_id);
         $results = $this->query(self::SQL_PROJECT_TWILIO_CREDS, [$project_id]);
-        if (!$results || $results->num_rows === 0) {
+        if (!$results || $results->num_rows === 0)
             return [
                 'success' => false,
                 'message' => "Project {$project_id} does not have valid Twilio credentials or Twilio is not enabled."
             ];
-        }
 
         $row = $results->fetch_assoc();
         $twilio_account_sid = self::filterAccountSid((string)$row['twilio_account_sid']);
         $twilio_auth_token = (string)$row['twilio_auth_token'];
         $twilio_from_number = (string)$row['twilio_from_number'];
 
-        if ($twilio_account_sid === '') {
+        if ($twilio_account_sid === '')
             return [
                 'success' => false,
                 'message' => "Project {$project_id} has an invalid Twilio Account SID format."
             ];
-        }
 
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
@@ -290,18 +279,16 @@ class BetterTwilioLogs extends AbstractExternalModule
                 $startTimestamp = (int)$lastFetch;
             } else {
                 $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $project_id);
-                if ($defaultDays <= 0) {
+                if ($defaultDays <= 0)
                     $defaultDays = self::DEFAULT_LOOKBACK_DAYS;
-                }
                 $startTimestamp = strtotime("-{$defaultDays} days");
             }
         }
 
         $dateFilter = gmdate('Y-m-d', $startTimestamp);
         $maxBatch = (int)$this->getSystemSetting('max-messages-per-fetch');
-        if ($maxBatch <= 0) {
+        if ($maxBatch <= 0)
             $maxBatch = self::DEFAULT_MAX_MESSAGES_PER_FETCH;
-        }
 
         $existingSids = $this->getExistingLoggedSids($project_id);
         $inboundCount = 0;
@@ -316,9 +303,8 @@ class BetterTwilioLogs extends AbstractExternalModule
 
             foreach ($this->fetchTwilioMessages($twilio_account_sid, $twilio_auth_token, $inboundParams) as $msg) {
                 $sid = $msg['sid'];
-                if (empty($sid) || isset($existingSids[$sid])) {
+                if (empty($sid) || isset($existingSids[$sid]))
                     continue;
-                }
 
                 $cleanBody = trim((string)$msg['body']);
                 $isStop = in_array(strtoupper($cleanBody), self::STOP_KEYWORDS, true);
@@ -340,9 +326,8 @@ class BetterTwilioLogs extends AbstractExternalModule
 
                 $existingSids[$sid] = true;
                 $inboundCount++;
-                if ($inboundCount >= $maxBatch) {
+                if ($inboundCount >= $maxBatch)
                     break;
-                }
             }
 
             $outboundParams = [
@@ -353,14 +338,12 @@ class BetterTwilioLogs extends AbstractExternalModule
 
             foreach ($this->fetchTwilioMessages($twilio_account_sid, $twilio_auth_token, $outboundParams) as $msg) {
                 $status = strtoupper((string)$msg['status']);
-                if (!in_array($status, self::ERROR_STATUS, true)) {
+                if (!in_array($status, self::ERROR_STATUS, true))
                     continue;
-                }
 
                 $sid = $msg['sid'];
-                if (empty($sid) || isset($existingSids[$sid])) {
+                if (empty($sid) || isset($existingSids[$sid]))
                     continue;
-                }
 
                 $this->log(self::LOG_TITLE_OUTBOUND_FAILED, [
                     'project_id'    => $project_id,
@@ -378,9 +361,8 @@ class BetterTwilioLogs extends AbstractExternalModule
 
                 $existingSids[$sid] = true;
                 $outboundCount++;
-                if ($outboundCount >= $maxBatch) {
+                if ($outboundCount >= $maxBatch)
                     break;
-                }
             }
 
             $now = time();
@@ -406,32 +388,29 @@ class BetterTwilioLogs extends AbstractExternalModule
     {
         $this->setProjectId($project_id);
         $results = $this->query(self::SQL_PROJECT_TWILIO_CREDS, [$project_id]);
-        if (!$results || $results->num_rows === 0) {
+        if (!$results || $results->num_rows === 0)
             return [
                 'success' => false,
                 'message' => "Project #{$project_id} does not have valid Twilio credentials or Twilio is not enabled."
             ];
-        }
 
         $row = $results->fetch_assoc();
         $twilio_account_sid = self::filterAccountSid((string)$row['twilio_account_sid']);
         $twilio_auth_token = (string)$row['twilio_auth_token'];
         $twilio_from_number = (string)$row['twilio_from_number'];
 
-        if ($twilio_account_sid === '') {
+        if ($twilio_account_sid === '')
             return [
                 'success' => false,
                 'message' => "Project #{$project_id} has an invalid Twilio Account SID format."
             ];
-        }
 
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
         } else {
             $defaultDays = (int)$this->getProjectSetting('default-lookback-days', $project_id);
-            if ($defaultDays <= 0) {
+            if ($defaultDays <= 0)
                 $defaultDays = self::DEFAULT_LOOKBACK_DAYS;
-            }
             $startTimestamp = strtotime("-{$defaultDays} days");
         }
 
@@ -439,16 +418,13 @@ class BetterTwilioLogs extends AbstractExternalModule
 
         try {
             if ($phase === 'inbound') {
-                if (!empty($nextPageUrl)) {
-                    $url = $nextPageUrl;
-                } else {
-                    $params = [
+                $url = !empty($nextPageUrl)
+                    ? $nextPageUrl
+                    : self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$twilio_account_sid}/Messages.json?" . http_build_query([
                         'To'         => $twilio_from_number,
                         'DateSent>=' => $dateFilter,
                         'PageSize'   => 100
-                    ];
-                    $url = self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$twilio_account_sid}/Messages.json?" . http_build_query($params);
-                }
+                    ]);
 
                 $pageData = $this->fetchTwilioPage($twilio_account_sid, $twilio_auth_token, $url);
                 $messages = $pageData['messages'];
@@ -459,9 +435,8 @@ class BetterTwilioLogs extends AbstractExternalModule
 
                 foreach ($messages as $msg) {
                     $sid = $msg['sid'];
-                    if (empty($sid) || isset($existingSids[$sid])) {
+                    if (empty($sid) || isset($existingSids[$sid]))
                         continue;
-                    }
 
                     $cleanBody = trim((string)$msg['body']);
                     $isStop = in_array(strtoupper($cleanBody), self::STOP_KEYWORDS, true);
@@ -486,7 +461,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 }
 
                 $nextPageUri = $pageData['next_page_uri'];
-                if (!empty($nextPageUri)) {
+                if (!empty($nextPageUri))
                     return [
                         'success'       => true,
                         'has_more'      => true,
@@ -494,86 +469,80 @@ class BetterTwilioLogs extends AbstractExternalModule
                         'next_page_url' => self::TWILIO_API_BASE_URL . $nextPageUri,
                         'batch_logged'  => $loggedCount
                     ];
-                } else {
-                    return [
-                        'success'       => true,
-                        'has_more'      => true,
-                        'phase'         => 'outbound',
-                        'next_page_url' => null,
-                        'batch_logged'  => $loggedCount
-                    ];
-                }
-            } else {
-                if (!empty($nextPageUrl)) {
-                    $url = $nextPageUrl;
-                } else {
-                    $params = [
-                        'From'       => $twilio_from_number,
-                        'DateSent>=' => $dateFilter,
-                        'PageSize'   => 100
-                    ];
-                    $url = self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$twilio_account_sid}/Messages.json?" . http_build_query($params);
-                }
 
-                $pageData = $this->fetchTwilioPage($twilio_account_sid, $twilio_auth_token, $url);
-                $messages = $pageData['messages'];
-                $loggedCount = 0;
-
-                $batchSids = array_filter(array_column($messages, 'sid'));
-                $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
-
-                foreach ($messages as $msg) {
-                    $status = strtoupper((string)$msg['status']);
-                    if (!in_array($status, self::ERROR_STATUS, true)) {
-                        continue;
-                    }
-
-                    $sid = $msg['sid'];
-                    if (empty($sid) || isset($existingSids[$sid])) {
-                        continue;
-                    }
-
-                    $this->log(self::LOG_TITLE_OUTBOUND_FAILED, [
-                        'project_id'    => $project_id,
-                        'message_sid'   => $sid,
-                        'direction'     => 'outbound',
-                        'from'          => $msg['from'],
-                        'to'            => $msg['to'],
-                        'body'          => trim((string)$msg['body']),
-                        'status'        => $msg['status'],
-                        'is_stop'       => 0,
-                        'date_sent'     => $msg['date_sent'] ?: date('r'),
-                        'error_code'    => (string)($msg['error_code'] ?: 'None'),
-                        'error_message' => (string)($msg['error_message'] ?: 'None')
-                    ]);
-
-                    $existingSids[$sid] = true;
-                    $loggedCount++;
-                }
-
-                $nextPageUri = $pageData['next_page_uri'];
-                if (!empty($nextPageUri)) {
-                    return [
-                        'success'       => true,
-                        'has_more'      => true,
-                        'phase'         => 'outbound',
-                        'next_page_url' => self::TWILIO_API_BASE_URL . $nextPageUri,
-                        'batch_logged'  => $loggedCount
-                    ];
-                } else {
-                    $now = time();
-                    $this->setProjectSetting('last_fetch_time', $now, $project_id);
-                    $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $project_id);
-
-                    return [
-                        'success'       => true,
-                        'has_more'      => false,
-                        'phase'         => 'done',
-                        'batch_logged'  => $loggedCount,
-                        'last_fetch'    => date('Y-m-d H:i:s', $now)
-                    ];
-                }
+                return [
+                    'success'       => true,
+                    'has_more'      => true,
+                    'phase'         => 'outbound',
+                    'next_page_url' => null,
+                    'batch_logged'  => $loggedCount
+                ];
             }
+
+            // Outbound phase
+            $url = !empty($nextPageUrl)
+                ? $nextPageUrl
+                : self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$twilio_account_sid}/Messages.json?" . http_build_query([
+                    'From'       => $twilio_from_number,
+                    'DateSent>=' => $dateFilter,
+                    'PageSize'   => 100
+                ]);
+
+            $pageData = $this->fetchTwilioPage($twilio_account_sid, $twilio_auth_token, $url);
+            $messages = $pageData['messages'];
+            $loggedCount = 0;
+
+            $batchSids = array_filter(array_column($messages, 'sid'));
+            $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
+
+            foreach ($messages as $msg) {
+                $status = strtoupper((string)$msg['status']);
+                if (!in_array($status, self::ERROR_STATUS, true))
+                    continue;
+
+                $sid = $msg['sid'];
+                if (empty($sid) || isset($existingSids[$sid]))
+                    continue;
+
+                $this->log(self::LOG_TITLE_OUTBOUND_FAILED, [
+                    'project_id'    => $project_id,
+                    'message_sid'   => $sid,
+                    'direction'     => 'outbound',
+                    'from'          => $msg['from'],
+                    'to'            => $msg['to'],
+                    'body'          => trim((string)$msg['body']),
+                    'status'        => $msg['status'],
+                    'is_stop'       => 0,
+                    'date_sent'     => $msg['date_sent'] ?: date('r'),
+                    'error_code'    => (string)($msg['error_code'] ?: 'None'),
+                    'error_message' => (string)($msg['error_message'] ?: 'None')
+                ]);
+
+                $existingSids[$sid] = true;
+                $loggedCount++;
+            }
+
+            $nextPageUri = $pageData['next_page_uri'];
+            if (!empty($nextPageUri))
+                return [
+                    'success'       => true,
+                    'has_more'      => true,
+                    'phase'         => 'outbound',
+                    'next_page_url' => self::TWILIO_API_BASE_URL . $nextPageUri,
+                    'batch_logged'  => $loggedCount
+                ];
+
+            $now = time();
+            $this->setProjectSetting('last_fetch_time', $now, $project_id);
+            $this->setProjectSetting('last_fetch_datetime', date('Y-m-d H:i:s', $now), $project_id);
+
+            return [
+                'success'       => true,
+                'has_more'      => false,
+                'phase'         => 'done',
+                'batch_logged'  => $loggedCount,
+                'last_fetch'    => date('Y-m-d H:i:s', $now)
+            ];
         } catch (Throwable $e) {
             return [
                 'success' => false,
@@ -589,13 +558,10 @@ class BetterTwilioLogs extends AbstractExternalModule
         $sids = [];
         $result = $this->queryLogs(self::PSEUDO_SQL_EXISTING_SIDS, []);
 
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                if (!empty($row['message_sid'])) {
+        if ($result)
+            while ($row = $result->fetch_assoc())
+                if (!empty($row['message_sid']))
                     $sids[$row['message_sid']] = true;
-                }
-            }
-        }
 
         return $sids;
     }
@@ -604,9 +570,8 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function getExistingSidsInBatch(int $project_id, array $sids): array
     {
         $sids = array_values(array_filter(array_unique($sids)));
-        if (empty($sids)) {
+        if (empty($sids))
             return [];
-        }
 
         $this->setProjectId($project_id);
         $placeholders = implode(',', array_fill(0, count($sids), '?'));
@@ -618,20 +583,15 @@ class BetterTwilioLogs extends AbstractExternalModule
         $existing = [];
         try {
             $result = $this->queryLogs($pseudoSql, $sids);
-            if ($result) {
-                while ($row = $result->fetch_assoc()) {
-                    if (!empty($row['message_sid'])) {
+            if ($result)
+                while ($row = $result->fetch_assoc())
+                    if (!empty($row['message_sid']))
                         $existing[$row['message_sid']] = true;
-                    }
-                }
-            }
         } catch (Throwable $e) {
             $all = $this->getExistingLoggedSids($project_id);
-            foreach ($sids as $s) {
-                if (isset($all[$s])) {
+            foreach ($sids as $s)
+                if (isset($all[$s]))
                     $existing[$s] = true;
-                }
-            }
         }
 
         return $existing;
@@ -642,18 +602,14 @@ class BetterTwilioLogs extends AbstractExternalModule
     {
         $this->setProjectId($project_id);
         $pseudoSql = self::PSEUDO_SQL_PROJECT_LOGS;
-        if ($limit !== null && $limit > 0) {
-            $limitInt = (int)$limit;
-            $pseudoSql .= " LIMIT {$limitInt}";
-        }
+        if ($limit !== null && $limit > 0)
+            $pseudoSql .= " LIMIT " . (int)$limit;
 
         $logs = [];
         $result = $this->queryLogs($pseudoSql, []);
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
+        if ($result)
+            while ($row = $result->fetch_assoc())
                 $logs[] = $row;
-            }
-        }
 
         return $logs;
     }
@@ -662,10 +618,8 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function getDesignatedSmsField(int $project_id): string
     {
         $res = $this->query(self::SQL_DESIGNATED_SMS_FIELD, [$project_id]);
-
-        if ($res && $row = $res->fetch_assoc()) {
+        if ($res && $row = $res->fetch_assoc())
             return trim((string)$row['survey_phone_participant_field']);
-        }
 
         return '';
     }
@@ -674,36 +628,29 @@ class BetterTwilioLogs extends AbstractExternalModule
     public function getPhoneToRecordMap(int $project_id): array
     {
         static $cache = [];
-        if (isset($cache[$project_id])) {
+        if (isset($cache[$project_id]))
             return $cache[$project_id];
-        }
 
         $recordIdField = $this->getRecordIdField($project_id);
         $designatedField = $this->getDesignatedSmsField($project_id);
         $additionalFields = $this->getProjectSetting('phone-fields', $project_id);
 
         $fields = [];
-        if (!empty($designatedField)) {
+        if (!empty($designatedField))
             $fields[] = $designatedField;
-        }
 
-        if (is_array($additionalFields)) {
+        if (is_array($additionalFields))
             foreach ($additionalFields as $f) {
                 $f = trim((string)$f);
-                if (!empty($f) && !in_array($f, $fields, true)) {
+                if (!empty($f) && !in_array($f, $fields, true))
                     $fields[] = $f;
-                }
             }
-        }
 
         if (empty($fields)) {
             $res = $this->query(self::SQL_METADATA_PHONE_FIELDS, [$project_id]);
-
-            if ($res) {
-                while ($r = $res->fetch_assoc()) {
+            if ($res)
+                while ($r = $res->fetch_assoc())
                     $fields[] = $r['field_name'];
-                }
-            }
         }
 
         $fields = array_values(array_unique(array_filter($fields)));
@@ -727,56 +674,52 @@ class BetterTwilioLogs extends AbstractExternalModule
                   AND value != ''
             ", $params);
 
-            if ($result) {
+            if ($result)
                 while ($row = $result->fetch_assoc()) {
                     $clean = self::cleanPhoneNumber((string)$row['value']);
-                    if (strlen($clean) >= 7) {
-                        $fieldName = $row['field_name'];
-                        $recordId = (string)$row['record'];
-                        $isDesignated = (!empty($designatedField) && $fieldName === $designatedField);
+                    if (strlen($clean) < 7)
+                        continue;
 
-                        if (!isset($map[$clean]) || $isDesignated) {
-                            $map[$clean] = [
-                                'record_id'     => $recordId,
-                                'field_name'    => $fieldName,
-                                'is_designated' => $isDesignated
-                            ];
-                        }
-                    }
+                    $fieldName = $row['field_name'];
+                    $recordId = (string)$row['record'];
+                    $isDesignated = (!empty($designatedField) && $fieldName === $designatedField);
+
+                    if (!isset($map[$clean]) || $isDesignated)
+                        $map[$clean] = [
+                            'record_id'     => $recordId,
+                            'field_name'    => $fieldName,
+                            'is_designated' => $isDesignated
+                        ];
                 }
-            }
         } catch (Throwable $e) {
             $fieldsToPull = array_unique(array_merge([$recordIdField], $fields));
             $data = REDCap::getData($project_id, 'array', null, $fieldsToPull);
-            if (is_array($data)) {
-                foreach ($data as $recordId => $recordEvents) {
+            if (is_array($data))
+                foreach ($data as $recordId => $recordEvents)
                     foreach ($recordEvents as $eventId => $eventData) {
                         $instances = isset($eventData['repeat_instances'])
                             ? $eventData['repeat_instances']
                             : [0 => [0 => $eventData]];
 
-                        foreach ($instances as $instRows) {
-                            foreach ($instRows as $row) {
+                        foreach ($instances as $instRows)
+                            foreach ($instRows as $row)
                                 foreach ($fields as $field) {
-                                    if (!empty($row[$field])) {
-                                        $clean = self::cleanPhoneNumber((string)$row[$field]);
-                                        if (strlen($clean) >= 7) {
-                                            $isDesignated = (!empty($designatedField) && $field === $designatedField);
-                                            if (!isset($map[$clean]) || $isDesignated) {
-                                                $map[$clean] = [
-                                                    'record_id'     => (string)$recordId,
-                                                    'field_name'    => $field,
-                                                    'is_designated' => $isDesignated
-                                                ];
-                                            }
-                                        }
-                                    }
+                                    if (empty($row[$field]))
+                                        continue;
+
+                                    $clean = self::cleanPhoneNumber((string)$row[$field]);
+                                    if (strlen($clean) < 7)
+                                        continue;
+
+                                    $isDesignated = (!empty($designatedField) && $field === $designatedField);
+                                    if (!isset($map[$clean]) || $isDesignated)
+                                        $map[$clean] = [
+                                            'record_id'     => (string)$recordId,
+                                            'field_name'    => $field,
+                                            'is_designated' => $isDesignated
+                                        ];
                                 }
-                            }
-                        }
                     }
-                }
-            }
         }
 
         $cache[$project_id] = $map;
@@ -788,19 +731,14 @@ class BetterTwilioLogs extends AbstractExternalModule
     {
         $resolutions = [];
         $legacy = $this->getProjectSetting('task_resolutions', $project_id);
-        if (is_array($legacy)) {
+        if (is_array($legacy))
             $resolutions = $legacy;
-        }
 
         $allSettings = $this->getProjectSettings($project_id);
-        if (is_array($allSettings)) {
-            foreach ($allSettings as $key => $val) {
-                if (strpos($key, 'task_res_') === 0 && is_array($val)) {
-                    $logId = substr($key, 9);
-                    $resolutions[$logId] = $val;
-                }
-            }
-        }
+        if (is_array($allSettings))
+            foreach ($allSettings as $key => $val)
+                if (strpos($key, 'task_res_') === 0 && is_array($val))
+                    $resolutions[substr($key, 9)] = $val;
 
         return $resolutions;
     }
@@ -851,17 +789,15 @@ class BetterTwilioLogs extends AbstractExternalModule
     // Save user per-page preference
     public function setUserPerPage(int $project_id, string $user_id, int $per_page): void
     {
-        if ($per_page > 0) {
+        if ($per_page > 0)
             $this->setProjectSetting('per_page_' . $user_id, $per_page, $project_id);
-        }
     }
 
     private function fetchTwilioMessages(string $sid, string $token, array $params = []): Generator
     {
         $sid = self::filterAccountSid($sid);
-        if ($sid === '') {
+        if ($sid === '')
             throw new RuntimeException("Invalid Twilio Account SID format.");
-        }
 
         $baseUrl = self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$sid}/Messages.json";
         $url = $baseUrl . (!empty($params) ? '?' . http_build_query($params) : '');
@@ -879,9 +815,8 @@ class BetterTwilioLogs extends AbstractExternalModule
             $httpCode    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $curlError   = curl_error($ch);
 
-            if ($curlError !== '') {
+            if ($curlError !== '')
                 throw new RuntimeException("cURL Network Error: {$curlError}");
-            }
 
             $data = json_decode((string)$rawResponse, true);
 
@@ -891,9 +826,8 @@ class BetterTwilioLogs extends AbstractExternalModule
                 throw new RuntimeException("Twilio API Error [{$code}]: {$msg}");
             }
 
-            foreach ($data['messages'] as $message) {
+            foreach ($data['messages'] as $message)
                 yield $message;
-            }
 
             $url = !empty($data['next_page_uri']) ? self::TWILIO_API_BASE_URL . $data['next_page_uri'] : null;
         }
@@ -902,14 +836,12 @@ class BetterTwilioLogs extends AbstractExternalModule
     private function fetchTwilioPage(string $sid, string $token, string $url): array
     {
         $sid = self::filterAccountSid($sid);
-        if ($sid === '') {
+        if ($sid === '')
             throw new RuntimeException("Invalid Twilio Account SID format.");
-        }
 
         $expectedPrefix = self::TWILIO_API_BASE_URL . self::TWILIO_API_VERSION_PATH . "/{$sid}/Messages";
-        if (strpos($url, $expectedPrefix) !== 0) {
+        if (strpos($url, $expectedPrefix) !== 0)
             throw new RuntimeException("Invalid Twilio API URL target.");
-        }
 
         $ch = curl_init($url);
         curl_setopt_array($ch, [
@@ -923,9 +855,8 @@ class BetterTwilioLogs extends AbstractExternalModule
         $httpCode    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError   = curl_error($ch);
 
-        if ($curlError !== '') {
+        if ($curlError !== '')
             throw new RuntimeException("cURL Network Error: {$curlError}");
-        }
 
         $data = json_decode((string)$rawResponse, true);
 
