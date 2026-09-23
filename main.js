@@ -16,12 +16,14 @@
 
         const toastHtml = `
             <div class="toast align-items-center ${bgClass} border-0 show shadow-lg mb-2" role="alert" aria-live="assertive" aria-atomic="true">
-              <div class="d-flex">
+              <div class="d-flex align-items-center justify-content-between">
                 <div class="toast-body d-flex align-items-center">
-                  <i class="fas ${icon} me-2 fs-5"></i>
+                  <i class="fas ${icon} me-2 fs-6"></i>
                   <span>${message}</span>
                 </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto toast-close-btn" aria-label="Close"></button>
+                <button type="button" class="toast-close-btn" aria-label="Close">
+                  <i class="fas fa-times"></i>
+                </button>
               </div>
             </div>`;
 
