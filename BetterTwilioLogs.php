@@ -70,9 +70,9 @@ class BetterTwilioLogs extends AbstractExternalModule
                 ];
 
             case 'updateTaskStatus':
-                $logId = $payload['log_id'] ?? null;
-                $status = $payload['status'] ?? 'open';
-                $notes = $payload['notes'] ?? '';
+                $logId = $payload['log_id'];
+                $status = $payload['status'] ?: 'open';
+                $notes = (string)$payload['notes'];
                 if (empty($logId)) {
                     return ['success' => false, 'message' => 'Missing log_id'];
                 }
@@ -97,7 +97,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 ];
 
             case 'savePerPage':
-                $perPage = (int)($payload['per_page'] ?? 20);
+                $perPage = (int)$payload['per_page'];
                 if ($perPage > 0) {
                     $this->setUserPerPage($project_id, $user_id, $perPage);
                     return ['success' => true, 'per_page' => $perPage];
@@ -156,8 +156,8 @@ class BetterTwilioLogs extends AbstractExternalModule
             $result = $this->syncProjectLogs($project_id);
             if ($result['success']) {
                 $processedCount++;
-                $totalInbound += $result['inbound_count'] ?? 0;
-                $totalOutbound += $result['outbound_count'] ?? 0;
+                $totalInbound += $result['inbound_count'];
+                $totalOutbound += $result['outbound_count'];
             }
         }
 
@@ -215,12 +215,12 @@ class BetterTwilioLogs extends AbstractExternalModule
             ];
 
             foreach ($this->fetchTwilioMessages($twilio_account_sid, $twilio_auth_token, $inboundParams) as $msg) {
-                $sid = $msg['sid'] ?? '';
+                $sid = $msg['sid'];
                 if (empty($sid) || isset($existingSids[$sid])) {
                     continue;
                 }
 
-                $cleanBody = trim($msg['body'] ?? '');
+                $cleanBody = trim((string)$msg['body']);
                 $isStop = in_array(strtoupper($cleanBody), $this->stopKeywords, true);
                 $logTitle = $isStop ? "Received STOP request" : "Received message from participant";
 
@@ -228,12 +228,12 @@ class BetterTwilioLogs extends AbstractExternalModule
                     'project_id'    => $project_id,
                     'message_sid'   => $sid,
                     'direction'     => 'inbound',
-                    'from'          => $msg['from'] ?? 'Unknown',
-                    'to'            => $msg['to'] ?? $twilio_from_number,
+                    'from'          => $msg['from'],
+                    'to'            => $msg['to'],
                     'body'          => $cleanBody,
-                    'status'        => $msg['status'] ?? 'received',
+                    'status'        => $msg['status'],
                     'is_stop'       => $isStop ? 1 : 0,
-                    'date_sent'     => $msg['date_sent'] ?? date('r'),
+                    'date_sent'     => $msg['date_sent'] ?: date('r'),
                     'error_code'    => '',
                     'error_message' => ''
                 ]);
@@ -252,12 +252,12 @@ class BetterTwilioLogs extends AbstractExternalModule
             ];
 
             foreach ($this->fetchTwilioMessages($twilio_account_sid, $twilio_auth_token, $outboundParams) as $msg) {
-                $status = strtoupper($msg['status'] ?? '');
+                $status = strtoupper((string)$msg['status']);
                 if (!in_array($status, $this->errorStatus, true)) {
                     continue;
                 }
 
-                $sid = $msg['sid'] ?? '';
+                $sid = $msg['sid'];
                 if (empty($sid) || isset($existingSids[$sid])) {
                     continue;
                 }
@@ -266,14 +266,14 @@ class BetterTwilioLogs extends AbstractExternalModule
                     'project_id'    => $project_id,
                     'message_sid'   => $sid,
                     'direction'     => 'outbound',
-                    'from'          => $msg['from'] ?? $twilio_from_number,
-                    'to'            => $msg['to'] ?? 'Unknown',
-                    'body'          => trim($msg['body'] ?? ''),
-                    'status'        => $msg['status'] ?? 'failed',
+                    'from'          => $msg['from'],
+                    'to'            => $msg['to'],
+                    'body'          => trim((string)$msg['body']),
+                    'status'        => $msg['status'],
                     'is_stop'       => 0,
-                    'date_sent'     => $msg['date_sent'] ?? date('r'),
-                    'error_code'    => $msg['error_code'] ?? 'None',
-                    'error_message' => $msg['error_message'] ?? 'None'
+                    'date_sent'     => $msg['date_sent'] ?: date('r'),
+                    'error_code'    => (string)($msg['error_code'] ?: 'None'),
+                    'error_message' => (string)($msg['error_message'] ?: 'None')
                 ]);
 
                 $existingSids[$sid] = true;
@@ -344,19 +344,19 @@ class BetterTwilioLogs extends AbstractExternalModule
                 }
 
                 $pageData = $this->fetchTwilioPage($twilio_account_sid, $twilio_auth_token, $url);
-                $messages = $pageData['messages'] ?? [];
+                $messages = $pageData['messages'];
                 $loggedCount = 0;
 
                 $batchSids = array_filter(array_column($messages, 'sid'));
                 $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
 
                 foreach ($messages as $msg) {
-                    $sid = $msg['sid'] ?? '';
+                    $sid = $msg['sid'];
                     if (empty($sid) || isset($existingSids[$sid])) {
                         continue;
                     }
 
-                    $cleanBody = trim($msg['body'] ?? '');
+                    $cleanBody = trim((string)$msg['body']);
                     $isStop = in_array(strtoupper($cleanBody), $this->stopKeywords, true);
                     $logTitle = $isStop ? "Received STOP request" : "Received message from participant";
 
@@ -364,12 +364,12 @@ class BetterTwilioLogs extends AbstractExternalModule
                         'project_id'    => $project_id,
                         'message_sid'   => $sid,
                         'direction'     => 'inbound',
-                        'from'          => $msg['from'] ?? 'Unknown',
-                        'to'            => $msg['to'] ?? $twilio_from_number,
+                        'from'          => $msg['from'],
+                        'to'            => $msg['to'],
                         'body'          => $cleanBody,
-                        'status'        => $msg['status'] ?? 'received',
+                        'status'        => $msg['status'],
                         'is_stop'       => $isStop ? 1 : 0,
-                        'date_sent'     => $msg['date_sent'] ?? date('r'),
+                        'date_sent'     => $msg['date_sent'] ?: date('r'),
                         'error_code'    => '',
                         'error_message' => ''
                     ]);
@@ -378,7 +378,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                     $loggedCount++;
                 }
 
-                $nextPageUri = $pageData['next_page_uri'] ?? null;
+                $nextPageUri = $pageData['next_page_uri'];
                 if (!empty($nextPageUri)) {
                     return [
                         'success'       => true,
@@ -409,19 +409,19 @@ class BetterTwilioLogs extends AbstractExternalModule
                 }
 
                 $pageData = $this->fetchTwilioPage($twilio_account_sid, $twilio_auth_token, $url);
-                $messages = $pageData['messages'] ?? [];
+                $messages = $pageData['messages'];
                 $loggedCount = 0;
 
                 $batchSids = array_filter(array_column($messages, 'sid'));
                 $existingSids = $this->getExistingSidsInBatch($project_id, $batchSids);
 
                 foreach ($messages as $msg) {
-                    $status = strtoupper($msg['status'] ?? '');
+                    $status = strtoupper((string)$msg['status']);
                     if (!in_array($status, $this->errorStatus, true)) {
                         continue;
                     }
 
-                    $sid = $msg['sid'] ?? '';
+                    $sid = $msg['sid'];
                     if (empty($sid) || isset($existingSids[$sid])) {
                         continue;
                     }
@@ -430,21 +430,21 @@ class BetterTwilioLogs extends AbstractExternalModule
                         'project_id'    => $project_id,
                         'message_sid'   => $sid,
                         'direction'     => 'outbound',
-                        'from'          => $msg['from'] ?? $twilio_from_number,
-                        'to'            => $msg['to'] ?? 'Unknown',
-                        'body'          => trim($msg['body'] ?? ''),
-                        'status'        => $msg['status'] ?? 'failed',
+                        'from'          => $msg['from'],
+                        'to'            => $msg['to'],
+                        'body'          => trim((string)$msg['body']),
+                        'status'        => $msg['status'],
                         'is_stop'       => 0,
-                        'date_sent'     => $msg['date_sent'] ?? date('r'),
-                        'error_code'    => $msg['error_code'] ?? 'None',
-                        'error_message' => $msg['error_message'] ?? 'None'
+                        'date_sent'     => $msg['date_sent'] ?: date('r'),
+                        'error_code'    => (string)($msg['error_code'] ?: 'None'),
+                        'error_message' => (string)($msg['error_message'] ?: 'None')
                     ]);
 
                     $existingSids[$sid] = true;
                     $loggedCount++;
                 }
 
-                $nextPageUri = $pageData['next_page_uri'] ?? null;
+                $nextPageUri = $pageData['next_page_uri'];
                 if (!empty($nextPageUri)) {
                     return [
                         'success'       => true,
@@ -602,7 +602,7 @@ class BetterTwilioLogs extends AbstractExternalModule
         ", [$project_id]);
 
         if ($res && $row = $res->fetch_assoc()) {
-            return trim((string)($row['survey_phone_participant_field'] ?? ''));
+            return trim((string)$row['survey_phone_participant_field']);
         }
 
         return '';
@@ -678,7 +678,7 @@ class BetterTwilioLogs extends AbstractExternalModule
 
             if ($result) {
                 while ($row = $result->fetch_assoc()) {
-                    $clean = self::cleanPhoneNumber((string)($row['value'] ?? ''));
+                    $clean = self::cleanPhoneNumber((string)$row['value']);
                     if (strlen($clean) >= 7) {
                         $fieldName = $row['field_name'];
                         $recordId = (string)$row['record'];
@@ -837,7 +837,7 @@ class BetterTwilioLogs extends AbstractExternalModule
                 throw new RuntimeException("Twilio API Error [{$code}]: {$msg}");
             }
 
-            foreach ($data['messages'] ?? [] as $message) {
+            foreach ($data['messages'] as $message) {
                 yield $message;
             }
 

@@ -5,7 +5,7 @@ use UWMadison\BetterTwilioLogs\BetterTwilioLogs;
 
 /** @var BetterTwilioLogs $module */
 
-$project_id = (int)($_GET['pid'] ?? $module->getProjectId());
+$project_id = (int)$_GET['pid'];
 $user_id = USERID;
 
 $module->initializeJavascriptModuleObject();
@@ -25,11 +25,11 @@ if ($twilioConfig && $twilioConfig->num_rows > 0) {
     $isTwilioConfigured = ($tRow['twilio_enabled'] == 1 
         && !empty($tRow['twilio_account_sid']) 
         && !empty($tRow['twilio_from_number']));
-    $twilioFromNumber = $tRow['twilio_from_number'] ?? '';
+    $twilioFromNumber = (string)$tRow['twilio_from_number'];
 }
 
 $hasAcknowledgedPhi = $module->hasUserAcknowledgedPhi($project_id, $user_id);
-$lastFetchDatetime = $module->getProjectSetting('last_fetch_datetime', $project_id) ?? 'Never';
+$lastFetchDatetime = $module->getProjectSetting('last_fetch_datetime', $project_id) ?: 'Never';
 $phoneMap = $module->getPhoneToRecordMap($project_id);
 $resolutions = $module->getTaskResolutions($project_id);
 $logs = $module->getProjectLogs($project_id);
@@ -268,29 +268,29 @@ $knownErrors = [
                     <?php endif; ?>
 
                     <?php foreach ($logs as $log): 
-                        $logId = (string)($log['log_id'] ?? '');
+                        $logId = (string)$log['log_id'];
                         $task = $resolutions[$logId] ?? ['status' => 'open', 'notes' => '', 'updated_by' => '', 'updated_at' => ''];
                         $taskStatus = ($task['status'] === 'resolved') ? 'resolved' : 'open';
-                        $notes = $task['notes'] ?? '';
+                        $notes = $task['notes'];
 
                         // Determine message type & participant phone
                         $isStop = !empty($log['is_stop']);
-                        $direction = $log['direction'] ?? '';
-                        $statusRaw = strtoupper($log['status'] ?? '');
+                        $direction = $log['direction'];
+                        $statusRaw = strtoupper($log['status']);
                         $isFailed = ($direction === 'outbound' || in_array($statusRaw, ['FAILED', 'UNDELIVERED']));
 
                         if ($isStop) {
                             $typeKey = 'stop';
                             $typeBadge = '<span class="badge badge-type-stop"><i class="fas fa-user-slash me-1"></i>STOP</span>';
-                            $participantPhone = $log['from'] ?? '';
+                            $participantPhone = $log['from'];
                         } elseif ($isFailed) {
                             $typeKey = 'failed';
                             $typeBadge = '<span class="badge badge-type-failed"><i class="fas fa-times-circle me-1"></i>Failed Out</span>';
-                            $participantPhone = $log['to'] ?? '';
+                            $participantPhone = $log['to'];
                         } else {
                             $typeKey = 'inbound';
                             $typeBadge = '<span class="badge badge-type-inbound"><i class="fas fa-reply me-1"></i>Inbound</span>';
-                            $participantPhone = $log['from'] ?? '';
+                            $participantPhone = $log['from'];
                         }
 
                         $cleanedPhone = BetterTwilioLogs::cleanPhoneNumber($participantPhone);
@@ -298,21 +298,21 @@ $knownErrors = [
 
                         // Record matching
                         $matchedRecord = $phoneMap[$cleanedPhone] ?? null;
-                        $recordId = $matchedRecord['record_id'] ?? null;
+                        $recordId = $matchedRecord ? $matchedRecord['record_id'] : null;
 
                         // Sorting metadata values
-                        $rawDateSent = $log['date_sent'] ?? $log['timestamp'] ?? '';
+                        $rawDateSent = $log['date_sent'] ?: $log['timestamp'];
                         $timestampVal = !empty($rawDateSent) ? strtotime($rawDateSent) : 0;
-                        $messageSortVal = strtolower(trim(($isFailed ? ($log['error_code'] ?? '') . ' ' : '') . ($log['body'] ?? '')));
+                        $messageSortVal = strtolower(trim(($isFailed ? $log['error_code'] . ' ' : '') . $log['body']));
 
                         // Build searchable text
                         $searchableText = strtolower(implode(' ', [
                             $participantPhone,
                             $cleanedPhone,
                             $recordId ?: '',
-                            $log['body'] ?? '',
-                            $log['error_code'] ?? '',
-                            $log['error_message'] ?? '',
+                            $log['body'],
+                            $log['error_code'],
+                            $log['error_message'],
                             $notes,
                             $taskStatus,
                             $typeKey
@@ -324,7 +324,7 @@ $knownErrors = [
                         data-timestamp="<?= $timestampVal ?>"
                         data-type="<?= htmlspecialchars($typeKey) ?>"
                         data-phone="<?= htmlspecialchars($cleanedPhone) ?>"
-                        data-record="<?= htmlspecialchars($recordId ?? '') ?>"
+                        data-record="<?= htmlspecialchars((string)$recordId) ?>"
                         data-message="<?= htmlspecialchars($messageSortVal) ?>"
                         data-notes="<?= htmlspecialchars($notes) ?>"
                         data-searchable="<?= htmlspecialchars($searchableText) ?>">
@@ -345,10 +345,10 @@ $knownErrors = [
                         <!-- Date & Time -->
                         <td>
                             <div class="fw-semibold text-dark" style="font-size: 0.88rem;">
-                                <?= htmlspecialchars(date('M d, Y', strtotime($log['date_sent'] ?? $log['timestamp']))) ?>
+                                <?= htmlspecialchars(date('M d, Y', $timestampVal)) ?>
                             </div>
                             <small class="text-muted">
-                                <?= htmlspecialchars(date('g:i A', strtotime($log['date_sent'] ?? $log['timestamp']))) ?>
+                                <?= htmlspecialchars(date('g:i A', $timestampVal)) ?>
                             </small>
                         </td>
 
@@ -374,7 +374,7 @@ $knownErrors = [
                         <!-- Matched Record ID -->
                         <td>
                             <?php if ($recordId !== null): ?>
-                                <?php $matchField = $matchedRecord['field_name'] ?? ''; ?>
+                                <?php $matchField = $matchedRecord ? $matchedRecord['field_name'] : ''; ?>
                                 <a href="<?= APP_PATH_WEBROOT ?>DataEntry/record_home.php?pid=<?= $project_id ?>&arm=1&id=<?= urlencode($recordId) ?>" 
                                    target="_blank" 
                                    class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" 
@@ -396,8 +396,8 @@ $knownErrors = [
                         <td>
                             <?php if ($isFailed): ?>
                                 <?php 
-                                    $errCode = $log['error_code'] ?? '';
-                                    $errMsg = $log['error_message'] ?? '';
+                                    $errCode = $log['error_code'];
+                                    $errMsg = $log['error_message'];
                                     $errDesc = $knownErrors[$errCode] ?? $errMsg;
                                 ?>
                                 <div class="text-danger fw-semibold d-flex align-items-center gap-1 mb-1">
@@ -414,7 +414,7 @@ $knownErrors = [
                                 <?php endif; ?>
                             <?php else: ?>
                                 <div class="message-body-box">
-                                    <?= nl2br(htmlspecialchars($log['body'] ?? '')) ?>
+                                    <?= nl2br(htmlspecialchars($log['body'])) ?>
                                 </div>
                             <?php endif; ?>
                         </td>
