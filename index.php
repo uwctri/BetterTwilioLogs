@@ -1,16 +1,15 @@
 <?php
 
-/** @var \UWMadison\BetterTwilioLogs\BetterTwilioLogs $module */
-
+use ExternalModules\ExternalModules;
 use UWMadison\BetterTwilioLogs\BetterTwilioLogs;
 
-$projectId = (int)($_GET['pid'] ?? $module->getProjectId());
-$username = defined('USERID') ? USERID : '';
+/** @var BetterTwilioLogs $module */
 
-// Initialize JSMO for AJAX communication
+$projectId = (int)($_GET['pid'] ?? $module->getProjectId());
+$username = (string)(ExternalModules::getUsername() ?: ($module->getUser() ? $module->getUser()->getUsername() : (defined('USERID') ? USERID : '')));
+
 $module->initializeJavascriptModuleObject();
 
-// Check project's Twilio configuration
 $twilioConfig = $module->query("
     SELECT twilio_enabled,
            twilio_account_sid,
@@ -29,14 +28,12 @@ if ($twilioConfig && $twilioConfig->num_rows > 0) {
     $twilioFromNumber = $tRow['twilio_from_number'] ?? '';
 }
 
-// User PHI consent check
 $hasAcknowledgedPhi = $module->hasUserAcknowledgedPhi($projectId, $username);
-
-// Fetch data
 $lastFetchDatetime = $module->getProjectSetting('last_fetch_datetime', $projectId) ?? 'Never';
 $phoneMap = $module->getPhoneToRecordMap($projectId);
 $resolutions = $module->getTaskResolutions($projectId);
-$logs = $module->getProjectLogs($projectId, 500);
+$logs = $module->getProjectLogs($projectId);
+$initialPerPage = $module->getUserPerPage($projectId, $username);
 
 // Friendly Twilio error codes
 $knownErrors = [
@@ -55,7 +52,7 @@ $knownErrors = [
 <!-- Stylesheets -->
 <link rel="stylesheet" href="<?= htmlspecialchars($module->getUrl('style.css')) ?>">
 
-<div class="twilio-logs-container py-3">
+<div class="twilio-logs-container py-3 me-3 pe-2" style="margin-right: 20px;">
 
     <!-- PHI Warning Modal Overlay (First-time user consent) -->
     <?php if (!$hasAcknowledgedPhi): ?>
@@ -100,7 +97,7 @@ $knownErrors = [
                 <i class="fas fa-sms fa-lg"></i>
             </div>
             <div>
-                <h3 class="fw-bold mb-0 text-dark">Twilio Logs & Task List</h3>
+                <h3 class="fw-bold mb-0 text-dark">Better Twilio Logs</h3>
                 <span class="text-muted small">
                     Monitor inbound participant replies, work failed outbound deliveries, and handle opt-outs.
                 </span>
@@ -116,7 +113,7 @@ $knownErrors = [
             </div>
             <?php if ($isTwilioConfigured): ?>
             <button type="button" id="btnSyncTwilio" class="btn btn-primary shadow-sm">
-                <i class="fas fa-sync-alt me-1"></i> Sync Twilio Now
+                <i class="fas fa-sync-alt me-1"></i> Sync Now
             </button>
             <?php endif; ?>
         </div>
@@ -206,13 +203,21 @@ $knownErrors = [
                     <button type="button" class="btn btn-outline-warning filter-type-btn" data-type="stop">STOP</button>
                     <button type="button" class="btn btn-outline-danger filter-type-btn" data-type="failed">Failed Outbound</button>
                 </div>
+
+                <!-- Matched Record Filter -->
+                <div class="btn-group btn-group-sm filter-btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary filter-match-btn active" data-match="all">All Records</button>
+                    <button type="button" class="btn btn-outline-primary filter-match-btn" data-match="matched">
+                        <i class="fas fa-link me-1"></i>Matched Only
+                    </button>
+                </div>
             </div>
 
             <!-- Search box -->
             <div class="d-flex align-items-center gap-2" style="min-width: 280px;">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" id="twilioSearchInput" class="form-control border-start-0" placeholder="Search phone, record, body, error...">
+                    <input type="text" id="twilioSearchInput" class="form-control border-start-0" placeholder="Search issues...">
                 </div>
                 <span class="badge bg-secondary" id="visibleCountBadge"><?= count($logs) ?></span>
             </div>
@@ -225,23 +230,39 @@ $knownErrors = [
             <table class="table table-twilio-logs table-hover align-middle mb-0" id="twilioLogsTable">
                 <thead>
                     <tr>
-                        <th style="width: 110px;">Status</th>
-                        <th style="width: 160px;">Date & Time</th>
-                        <th style="width: 140px;">Type</th>
-                        <th style="width: 170px;">Participant Phone</th>
-                        <th style="width: 140px;">Matched Record</th>
-                        <th>Message Content / Error Detail</th>
-                        <th style="width: 180px;">Notes</th>
-                        <th style="width: 150px;" class="text-end">Actions</th>
+                        <th class="sortable-header" data-sort="status" style="width: 110px;">
+                            Status <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="timestamp" style="width: 160px;">
+                            Date & Time <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="type" style="width: 140px;">
+                            Type <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="phone" style="width: 170px;">
+                            Participant Phone <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="record" style="width: 140px;">
+                            Matched Record <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="message">
+                            Message Content / Error Detail <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th class="sortable-header" data-sort="notes" style="width: 180px;">
+                            Notes <i class="fas fa-sort sort-icon ms-1"></i>
+                        </th>
+                        <th style="width: 80px;" class="text-end"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($logs)): ?>
                     <tr id="initialEmptyRow">
-                        <td colspan="8" class="text-center py-5 text-muted">
-                            <i class="fas fa-comments fa-3x mb-3 text-secondary opacity-50"></i>
-                            <p class="mb-1 fw-semibold">No Twilio logs found for this project.</p>
-                            <small class="text-muted">Click "Sync Twilio Now" to check for recent messages.</small>
+                        <td colspan="8" class="empty-state-cell p-0">
+                            <div class="empty-state-wrapper">
+                                <i class="fas fa-comments fa-3x mb-3 text-secondary opacity-50"></i>
+                                <h6 class="fw-semibold text-secondary mb-1">No Twilio logs found for this project.</h6>
+                                <small class="text-muted">Click "Sync Twilio Now" to check for recent messages.</small>
+                            </div>
                         </td>
                     </tr>
                     <?php endif; ?>
@@ -279,6 +300,11 @@ $knownErrors = [
                         $matchedRecord = $phoneMap[$cleanedPhone] ?? null;
                         $recordId = $matchedRecord['record_id'] ?? null;
 
+                        // Sorting metadata values
+                        $rawDateSent = $log['date_sent'] ?? $log['timestamp'] ?? '';
+                        $timestampVal = !empty($rawDateSent) ? strtotime($rawDateSent) : 0;
+                        $messageSortVal = strtolower(trim(($isFailed ? ($log['error_code'] ?? '') . ' ' : '') . ($log['body'] ?? '')));
+
                         // Build searchable text
                         $searchableText = strtolower(implode(' ', [
                             $participantPhone,
@@ -295,7 +321,11 @@ $knownErrors = [
                     <tr class="log-row" 
                         data-log-id="<?= htmlspecialchars($logId) ?>"
                         data-status="<?= htmlspecialchars($taskStatus) ?>"
+                        data-timestamp="<?= $timestampVal ?>"
                         data-type="<?= htmlspecialchars($typeKey) ?>"
+                        data-phone="<?= htmlspecialchars($cleanedPhone) ?>"
+                        data-record="<?= htmlspecialchars($recordId ?? '') ?>"
+                        data-message="<?= htmlspecialchars($messageSortVal) ?>"
                         data-notes="<?= htmlspecialchars($notes) ?>"
                         data-searchable="<?= htmlspecialchars($searchableText) ?>">
                         
@@ -333,7 +363,7 @@ $knownErrors = [
                                 </span>
                                 <?php if (!empty($participantPhone)): ?>
                                 <button type="button" class="btn btn-link copy-phone-btn p-0" 
-                                        onclick="TwilioLogs.copyToClipboard('<?= htmlspecialchars($participantPhone) ?>', this)" 
+                                        onclick="ExternalModules.UWMadison.BetterTwilioLogs.copyToClipboard('<?= htmlspecialchars($participantPhone) ?>', this)" 
                                         title="Copy phone number">
                                     <i class="far fa-copy"></i>
                                 </button>
@@ -390,15 +420,13 @@ $knownErrors = [
                         </td>
 
                         <!-- Resolution Notes -->
-                        <td>
+                        <td class="notes-cell">
                             <div class="notes-preview" title="<?= htmlspecialchars($notes) ?>">
                                 <?= !empty($notes) ? htmlspecialchars($notes) : '<span class="text-muted opacity-75">No notes</span>' ?>
                             </div>
-                            <?php if (!empty($task['updated_by'])): ?>
-                            <small class="text-muted d-block task-audit-trail" style="font-size: 0.75rem;">
-                                <?= htmlspecialchars($task['updated_by']) ?> &bull; <?= htmlspecialchars(date('m/d/y', strtotime($task['updated_at']))) ?>
+                            <small class="text-muted d-block task-audit-trail" style="font-size: 0.75rem; <?= empty($task['updated_by']) ? 'display: none;' : '' ?>">
+                                <?= !empty($task['updated_by']) ? htmlspecialchars($task['updated_by']) . ' &bull; ' . htmlspecialchars(date('m/d/y', strtotime($task['updated_at']))) : '' ?>
                             </small>
-                            <?php endif; ?>
                         </td>
 
                         <!-- Action Buttons -->
@@ -406,20 +434,20 @@ $knownErrors = [
                             <div class="d-inline-flex gap-1">
                                 <?php if ($taskStatus === 'resolved'): ?>
                                 <button type="button" class="btn btn-sm btn-outline-secondary btn-toggle-status py-1 px-2"
-                                        onclick="TwilioLogs.toggleStatus('<?= htmlspecialchars($logId) ?>', 'open')"
+                                        onclick="ExternalModules.UWMadison.BetterTwilioLogs.toggleStatus('<?= htmlspecialchars($logId) ?>', 'open')"
                                         title="Reopen this task">
-                                    <i class="fas fa-undo me-1"></i>Reopen
+                                    <i class="fas fa-undo"></i>
                                 </button>
                                 <?php else: ?>
                                 <button type="button" class="btn btn-sm btn-outline-success btn-toggle-status py-1 px-2"
-                                        onclick="TwilioLogs.toggleStatus('<?= htmlspecialchars($logId) ?>', 'resolved')"
+                                        onclick="ExternalModules.UWMadison.BetterTwilioLogs.toggleStatus('<?= htmlspecialchars($logId) ?>', 'resolved')"
                                         title="Mark task as resolved">
-                                    <i class="fas fa-check me-1"></i>Resolve
+                                    <i class="fas fa-check"></i>
                                 </button>
                                 <?php endif; ?>
 
                                 <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2"
-                                        onclick="TwilioLogs.openNotesModal('<?= htmlspecialchars($logId) ?>')"
+                                        onclick="ExternalModules.UWMadison.BetterTwilioLogs.openNotesModal('<?= htmlspecialchars($logId) ?>')"
                                         title="Add or edit notes">
                                     <i class="fas fa-pencil-alt"></i>
                                 </button>
@@ -429,13 +457,33 @@ $knownErrors = [
                     <?php endforeach; ?>
 
                     <tr id="noLogsRow" style="display: none;">
-                        <td colspan="8" class="text-center py-5 text-muted">
-                            <i class="fas fa-filter fa-2x mb-2 text-secondary opacity-50"></i>
-                            <p class="mb-0 fw-semibold">No logs match your filter criteria.</p>
+                        <td colspan="8" class="empty-state-cell p-0">
+                            <div class="empty-state-wrapper">
+                                <i class="fas fa-filter fa-3x mb-3 text-secondary opacity-50"></i>
+                                <h6 class="fw-semibold text-secondary mb-1">No logs match your filter criteria</h6>
+                                <small class="text-muted">Try adjusting your status, type, or search filters.</small>
+                            </div>
                         </td>
                     </tr>
                 </tbody>
             </table>
+        </div>
+
+        <!-- Card Footer with Pagination Controls -->
+        <div class="card-footer bg-white border-top py-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center flex-wrap gap-2">
+                <span class="text-muted small">Show</span>
+                <input type="number" id="recordsPerPageInput" class="form-control form-control-sm text-center" 
+                       style="width: 70px;" min="1" value="<?= $initialPerPage ?>" title="Entries per page">
+                <span class="text-muted small">per page</span>
+                <span class="text-muted small ms-2 border-start ps-3" id="paginationInfo">
+                    Showing 0 of 0 entries
+                </span>
+            </div>
+            <nav aria-label="Logs pagination" id="paginationNav">
+                <ul class="pagination pagination-sm mb-0" id="paginationList">
+                </ul>
+            </nav>
         </div>
     </div>
 </div>
@@ -469,7 +517,7 @@ $knownErrors = [
             </div>
             <div class="modal-footer bg-light border-top">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="TwilioLogs.saveNotes()">
+                <button type="button" class="btn btn-primary" onclick="ExternalModules.UWMadison.BetterTwilioLogs.saveNotes()">
                     <i class="fas fa-save me-1"></i> Save Changes
                 </button>
             </div>
@@ -478,4 +526,7 @@ $knownErrors = [
 </div>
 
 <!-- Javascript -->
+<script>
+    ExternalModules.UWMadison.BetterTwilioLogs.currentUsername = <?= json_encode($username) ?>;
+</script>
 <script src="<?= htmlspecialchars($module->getUrl('main.js')) ?>"></script>

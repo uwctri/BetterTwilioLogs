@@ -2,7 +2,9 @@
 
 .twilio-logs-container {
     max-width: 1700px;
-    margin: 0 auto;
+    margin-left: 0;
+    margin-right: 20px;
+    padding-right: 15px;
 }
 
 .twilio-metric-card {
@@ -54,6 +56,11 @@
     color: #059669;
 }
 
+.table-twilio-logs {
+    width: 100% !important;
+    min-width: 100%;
+}
+
 .table-twilio-logs thead th {
     background-color: #f8fafc;
     color: #475569;
@@ -64,6 +71,32 @@
     border-bottom: 2px solid #e2e8f0;
     white-space: nowrap;
     vertical-align: middle;
+}
+
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sortable-header:hover {
+    background-color: #edf2f7 !important;
+    color: #0f172a !important;
+}
+
+.sortable-header .sort-icon {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    transition: color 0.15s ease;
+}
+
+.sortable-header.sort-active {
+    background-color: #eff6ff !important;
+    color: #1d4ed8 !important;
+}
+
+.sortable-header.sort-active .sort-icon {
+    color: #2563eb !important;
 }
 
 .table-twilio-logs tbody tr {
@@ -77,6 +110,22 @@
 .table-twilio-logs td {
     vertical-align: middle;
     font-size: 0.92rem;
+}
+
+.empty-state-cell {
+    text-align: center !important;
+    vertical-align: middle !important;
+}
+
+.empty-state-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 3.5rem 1rem;
+    width: 100%;
+    margin: 0 auto;
 }
 
 .badge-task-open {
@@ -179,3 +228,43 @@
     z-index: 10050;
     min-width: 320px;
 }
+
+/* Pagination Styling */
+.pagination {
+    margin-bottom: 0;
+}
+
+.pagination .page-link {
+    color: #475569;
+    border-color: #e2e8f0;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.85rem;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.pagination .page-link:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+}
+
+.pagination .page-item.disabled .page-link {
+    color: #94a3b8;
+    background-color: #f8fafc;
+    border-color: #e2e8f0;
+}
+
+#btnSyncTwilio {
+    min-width: 125px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+}
+

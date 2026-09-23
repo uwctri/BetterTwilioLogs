@@ -33,7 +33,8 @@
         "acknowledgePhiWarning",
         "updateTaskStatus",
         "syncNow",
-        "getLogs"
+        "getLogs",
+        "savePerPage"
     ],
     "system-settings": [
         {
