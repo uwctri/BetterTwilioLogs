@@ -221,6 +221,19 @@
     overflow: hidden;
 }
 
+.phi-warning-card a.btn-outline-secondary {
+    text-decoration: none !important;
+}
+
+.phi-warning-card a.btn-outline-secondary:hover,
+.phi-warning-card a.btn-outline-secondary:focus,
+.phi-warning-card a.btn-outline-secondary:active {
+    text-decoration: none !important;
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: #ffffff !important;
+}
+
 .twilio-toast {
     position: fixed;
     bottom: 24px;

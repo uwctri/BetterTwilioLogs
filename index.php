@@ -61,7 +61,7 @@ $knownErrors = [
             <div class="p-4 bg-danger text-white d-flex align-items-center">
                 <i class="fas fa-shield-alt fa-2x me-3"></i>
                 <div>
-                    <h5 class="mb-0 fw-bold">Protected Health Information (PHI) Notice</h5>
+                    <h5 class="mb-0 fw-bold">PHI Notice</h5>
                     <small>User Access Acknowledgment Required</small>
                 </div>
             </div>
@@ -70,19 +70,19 @@ $knownErrors = [
                     This page displays Twilio communication logs for this project, including 
                     <strong>participant phone numbers</strong> and the <strong>text content of inbound SMS messages</strong>.
                 </p>
-                <div class="alert alert-warning d-flex align-items-start mb-3" role="alert">
-                    <i class="fas fa-exclamation-triangle mt-1 me-2 flex-shrink-0"></i>
+                <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                    <i class="fas fa-exclamation-triangle fa-2x me-3 flex-shrink-0"></i>
                     <div>
                         Inbound messages sent by participants may contain sensitive personal or health information. 
                         By proceeding, you acknowledge that you are authorized to access participant data for this project.
                     </div>
                 </div>
                 <div class="d-flex justify-content-end gap-2 pt-2 border-top">
-                    <a href="<?= APP_PATH_WEBROOT ?>index.php?pid=<?= $project_id ?>" class="btn btn-outline-secondary">
+                    <a href="<?= APP_PATH_WEBROOT ?>index.php?pid=<?= $project_id ?>" class="btn btn-outline-secondary text-decoration-none">
                         <i class="fas fa-arrow-left me-1"></i> Return to Project
                     </a>
                     <button type="button" id="btnAckPhi" class="btn btn-danger">
-                        <i class="fas fa-check-shield me-1"></i> I Understand & Acknowledge
+                        <i class="fas fa-check me-1"></i> I Understand & Acknowledge
                     </button>
                 </div>
             </div>
