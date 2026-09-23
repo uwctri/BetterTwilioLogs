@@ -178,9 +178,16 @@ class BetterTwilioLogs extends AbstractExternalModule
         }
 
         $row = $results->fetch_assoc();
-        $twilio_account_sid = $row['twilio_account_sid'];
-        $twilio_auth_token = $row['twilio_auth_token'];
-        $twilio_from_number = $row['twilio_from_number'];
+        $twilio_account_sid = (string)$row['twilio_account_sid'];
+        $twilio_auth_token = (string)$row['twilio_auth_token'];
+        $twilio_from_number = (string)$row['twilio_from_number'];
+
+        if (!self::isValidAccountSid($twilio_account_sid)) {
+            return [
+                'success' => false,
+                'message' => "Project #{$project_id} has an invalid Twilio Account SID format."
+            ];
+        }
 
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
@@ -314,9 +321,16 @@ class BetterTwilioLogs extends AbstractExternalModule
         }
 
         $row = $results->fetch_assoc();
-        $twilio_account_sid = $row['twilio_account_sid'];
-        $twilio_auth_token = $row['twilio_auth_token'];
-        $twilio_from_number = $row['twilio_from_number'];
+        $twilio_account_sid = (string)$row['twilio_account_sid'];
+        $twilio_auth_token = (string)$row['twilio_auth_token'];
+        $twilio_from_number = (string)$row['twilio_from_number'];
+
+        if (!self::isValidAccountSid($twilio_account_sid)) {
+            return [
+                'success' => false,
+                'message' => "Project #{$project_id} has an invalid Twilio Account SID format."
+            ];
+        }
 
         if ($customLookbackDays !== null && $customLookbackDays > 0) {
             $startTimestamp = strtotime("-{$customLookbackDays} days");
@@ -592,6 +606,12 @@ class BetterTwilioLogs extends AbstractExternalModule
         return $phone;
     }
 
+    // Validate Twilio Account SID format
+    public static function isValidAccountSid(string $sid): bool
+    {
+        return (bool)preg_match('/^AC[a-zA-Z0-9]{32}$/', $sid);
+    }
+
     // Get designated SMS field from project setup
     public function getDesignatedSmsField(int $project_id): string
     {
@@ -808,6 +828,10 @@ class BetterTwilioLogs extends AbstractExternalModule
     // Stream messages from Twilio API
     private function fetchTwilioMessages(string $sid, string $token, array $params = []): Generator
     {
+        if (!self::isValidAccountSid($sid)) {
+            throw new RuntimeException("Invalid Twilio Account SID format.");
+        }
+
         $baseUrl = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json";
         $url = $baseUrl . (!empty($params) ? '?' . http_build_query($params) : '');
 
@@ -848,6 +872,10 @@ class BetterTwilioLogs extends AbstractExternalModule
     // Fetch single page from Twilio API
     private function fetchTwilioPage(string $sid, string $token, string $url): array
     {
+        if (!self::isValidAccountSid($sid)) {
+            throw new RuntimeException("Invalid Twilio Account SID format.");
+        }
+
         $expectedPrefix = "https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages";
         if (strpos($url, $expectedPrefix) !== 0) {
             throw new RuntimeException("Invalid Twilio API URL target.");
