@@ -47,6 +47,15 @@ $knownErrors = [
     '21610' => 'Recipient previously unsubscribed',
     '21614' => 'Number cannot receive SMS',
 ];
+
+// Collect unique error codes from logs
+$availableErrorCodes = [];
+foreach ($logs as $l) {
+    $code = trim((string)($l['error_code'] ?? ''));
+    if ($code !== '' && $code !== 'None')
+        $availableErrorCodes[$code] = ($availableErrorCodes[$code] ?? 0) + 1;
+}
+ksort($availableErrorCodes);
 ?>
 
 <!-- Stylesheets -->
@@ -204,6 +213,40 @@ $knownErrors = [
                     <button type="button" class="btn btn-outline-danger filter-type-btn" data-type="failed">Failed Outbound</button>
                 </div>
 
+                <!-- Error Code Filter (Multi-Select) -->
+                <div class="dropdown filter-error-dropdown" id="errorCodeFilterDropdown">
+                    <button type="button" class="btn btn-sm btn-outline-danger dropdown-toggle d-flex align-items-center gap-1 filter-error-btn" id="btnErrorCodeDropdown" title="Filter by Twilio error codes">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Error Codes</span>
+                        <span class="badge bg-danger text-white rounded-pill ms-1" id="selectedErrorsCountBadge" style="display: none;">0</span>
+                    </button>
+                    <div class="dropdown-menu shadow-sm p-0 filter-error-menu" id="errorCodeFilterMenu" style="min-width: 380px; width: max-content; max-width: 540px;">
+                        <div class="p-2 border-bottom d-flex align-items-center justify-content-between bg-light rounded-top">
+                            <span class="small fw-semibold text-secondary">Filter by Error Code</span>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none small text-secondary" id="btnClearErrors">Clear</button>
+                        </div>
+                        <div class="filter-error-list p-2" style="max-height: 240px; overflow-y: auto;">
+                            <?php if (empty($availableErrorCodes)): ?>
+                                <div class="text-muted small text-center py-3">No error codes recorded</div>
+                            <?php else: ?>
+                                <?php foreach ($availableErrorCodes as $errCode => $errCount): ?>
+                                    <?php $errDescription = $knownErrors[$errCode] ?? 'Unknown error'; ?>
+                                    <div class="filter-error-item d-flex align-items-center py-1 px-3 rounded mb-1">
+                                        <input class="filter-error-checkbox me-2" type="checkbox" value="<?= htmlspecialchars((string)$errCode) ?>" id="errCheck_<?= htmlspecialchars((string)$errCode) ?>">
+                                        <label class="w-100 d-flex align-items-center justify-content-between small cursor-pointer" for="errCheck_<?= htmlspecialchars((string)$errCode) ?>">
+                                            <span class="d-flex align-items-center gap-1 me-3">
+                                                <span class="fw-semibold text-danger me-1"><?= htmlspecialchars((string)$errCode) ?></span>
+                                                <span class="text-dark"><?= htmlspecialchars($errDescription) ?></span>
+                                            </span>
+                                            <span class="badge bg-light text-muted border ms-2"><?= $errCount ?></span>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Matched Record Filter -->
                 <div class="btn-group btn-group-sm filter-btn-group" role="group">
                     <button type="button" class="btn btn-outline-secondary filter-match-btn active" data-match="all">All Records</button>
@@ -325,6 +368,7 @@ $knownErrors = [
                         data-type="<?= htmlspecialchars($typeKey) ?>"
                         data-phone="<?= htmlspecialchars($cleanedPhone) ?>"
                         data-record="<?= htmlspecialchars((string)$recordId) ?>"
+                        data-error-code="<?= htmlspecialchars(($isFailed && !empty($log['error_code']) && $log['error_code'] !== 'None') ? (string)$log['error_code'] : '') ?>"
                         data-message="<?= htmlspecialchars($messageSortVal) ?>"
                         data-notes="<?= htmlspecialchars($notes) ?>"
                         data-searchable="<?= htmlspecialchars($searchableText) ?>">

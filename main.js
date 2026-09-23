@@ -5,6 +5,7 @@
     let activeStatusFilter = 'all';
     let activeTypeFilter = 'all';
     let activeMatchFilter = 'all';
+    let selectedErrorCodes = new Set();
     let searchTerm = '';
     let currentSort = { column: null, direction: 'asc' };
     let currentPage = 1;
@@ -223,6 +224,25 @@
         $list.append($next);
     };
 
+    const updateErrorCodeDropdownUI = () => {
+        const count = selectedErrorCodes.size;
+        const $badge = $('#selectedErrorsCountBadge');
+        const $btn = $('#btnErrorCodeDropdown');
+
+        if (count > 0) {
+            $badge.text(count).show();
+            $btn.addClass('active text-white bg-danger');
+        } else {
+            $badge.hide();
+            $btn.removeClass('active text-white bg-danger');
+        }
+
+        $('.filter-error-checkbox').each((_, el) => {
+            const code = $(el).val();
+            $(el).prop('checked', selectedErrorCodes.has(code));
+        });
+    };
+
     const applyFilters = () => {
         const matchedRows = [];
 
@@ -231,14 +251,16 @@
             const rowStatus = $row.attr('data-status') || 'open';
             const rowType = $row.attr('data-type') || 'inbound';
             const rowRecord = ($row.attr('data-record') || '').trim();
+            const rowErrorCode = ($row.attr('data-error-code') || '').trim();
             const searchableText = $row.attr('data-searchable') || '';
 
             const statusMatch = (activeStatusFilter === 'all') || (rowStatus === activeStatusFilter);
             const typeMatch = (activeTypeFilter === 'all') || (rowType === activeTypeFilter);
             const matchMatch = (activeMatchFilter === 'all') || (activeMatchFilter === 'matched' && rowRecord !== '');
+            const errorMatch = (selectedErrorCodes.size === 0) || (rowErrorCode !== '' && selectedErrorCodes.has(rowErrorCode));
             const textMatch = (searchTerm === '') || (searchableText.indexOf(searchTerm) !== -1);
 
-            if (statusMatch && typeMatch && matchMatch && textMatch)
+            if (statusMatch && typeMatch && matchMatch && textMatch && errorMatch)
                 matchedRows.push($row);
             else
                 $row.hide();
@@ -520,6 +542,54 @@
             $('.filter-type-btn').removeClass('active');
             $(e.currentTarget).addClass('active');
             activeTypeFilter = $(e.currentTarget).data('type');
+            if (activeTypeFilter === 'inbound' || activeTypeFilter === 'stop') {
+                selectedErrorCodes.clear();
+                updateErrorCodeDropdownUI();
+            }
+            currentPage = 1;
+            applyFilters();
+        });
+
+        $('#btnErrorCodeDropdown').on('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#errorCodeFilterDropdown').toggleClass('show');
+            $('#errorCodeFilterMenu').toggleClass('show');
+        });
+
+        $('#errorCodeFilterMenu').on('click', (e) => {
+            e.stopPropagation();
+        });
+
+        $(document).on('click', (e) => {
+            if (!$(e.target).closest('#errorCodeFilterDropdown').length) {
+                $('#errorCodeFilterDropdown').removeClass('show');
+                $('#errorCodeFilterMenu').removeClass('show');
+            }
+        });
+
+        $('.filter-error-checkbox').on('change', (e) => {
+            const code = $(e.currentTarget).val();
+            if ($(e.currentTarget).is(':checked'))
+                selectedErrorCodes.add(code);
+            else
+                selectedErrorCodes.delete(code);
+
+            if (selectedErrorCodes.size > 0 && (activeTypeFilter === 'inbound' || activeTypeFilter === 'stop')) {
+                activeTypeFilter = 'failed';
+                $('.filter-type-btn').removeClass('active');
+                $('.filter-type-btn[data-type="failed"]').addClass('active');
+            }
+
+            updateErrorCodeDropdownUI();
+            currentPage = 1;
+            applyFilters();
+        });
+
+        $('#btnClearErrors').on('click', (e) => {
+            e.preventDefault();
+            selectedErrorCodes.clear();
+            updateErrorCodeDropdownUI();
             currentPage = 1;
             applyFilters();
         });
