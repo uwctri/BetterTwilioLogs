@@ -120,6 +120,37 @@ ksort($availableErrorCodes);
                     <?= htmlspecialchars($lastFetchDatetime) ?>
                 </span>
             </div>
+            <!-- Download Dropdown -->
+            <div class="dropdown" id="downloadCsvDropdown">
+                <button type="button" id="btnDownloadCsv" class="btn btn-success shadow-sm d-flex align-items-center gap-1" title="Download">
+                    <i class="fas fa-download"></i>
+                    <span>Download</span>
+                    <i class="fas fa-caret-down ms-1" style="font-size: 0.8rem;"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end shadow-sm" id="downloadCsvMenu" style="min-width: 240px;">
+                    <a class="dropdown-item cursor-pointer d-flex align-items-center gap-2 py-2 text-decoration-none" href="#" id="btnDownloadFiltered">
+                        <i class="fas fa-filter text-primary"></i>
+                        <div>
+                            <div class="fw-semibold">Filtered Logs</div>
+                            <small class="text-muted">Export currently visible logs</small>
+                        </div>
+                    </a>
+                    <a class="dropdown-item cursor-pointer d-flex align-items-center gap-2 py-2 text-decoration-none" href="#" id="btnDownloadAllErrors">
+                        <i class="fas fa-exclamation-triangle text-danger"></i>
+                        <div>
+                            <div class="fw-semibold">All Errors</div>
+                            <small class="text-muted">Export all failed outbound logs</small>
+                        </div>
+                    </a>
+                    <a class="dropdown-item cursor-pointer d-flex align-items-center gap-2 py-2 text-decoration-none" href="#" id="btnDownloadAll">
+                        <i class="fas fa-list text-secondary"></i>
+                        <div>
+                            <div class="fw-semibold">All Logs</div>
+                            <small class="text-muted">Export all log entries</small>
+                        </div>
+                    </a>
+                </div>
+            </div>
             <?php if ($isTwilioConfigured): ?>
             <button type="button" id="btnSyncTwilio" class="btn btn-primary shadow-sm">
                 <i class="fas fa-sync-alt me-1"></i> Sync Now
@@ -138,7 +169,7 @@ ksort($availableErrorCodes);
                 <p class="text-secondary mb-2">
                     Twilio is either not enabled or missing credentials for this project. To fetch SMS logs, configure your Twilio Account SID, Auth Token, and From Number in project settings.
                 </p>
-                <a href="<?= APP_PATH_WEBROOT ?>ProjectSetup/index.php?pid=<?= $project_id ?>" class="btn btn-sm btn-outline-primary">
+                <a href="<?= APP_PATH_WEBROOT ?>ProjectSetup/index.php?pid=<?= $project_id ?>" class="btn btn-sm btn-outline-primary text-decoration-none">
                     <i class="fas fa-cog me-1"></i> Go to Project Setup
                 </a>
             </div>
@@ -343,10 +374,14 @@ ksort($availableErrorCodes);
                         $matchedRecord = $phoneMap[$cleanedPhone] ?? null;
                         $recordId = $matchedRecord ? $matchedRecord['record_id'] : null;
 
+                        $errCode = (string)($log['error_code'] ?? '');
+                        $errMsg = (string)($log['error_message'] ?? '');
+                        $errDesc = $isFailed ? ($knownErrors[$errCode] ?? $errMsg) : '';
+
                         // Sorting metadata values
                         $rawDateSent = $log['date_sent'] ?: $log['timestamp'];
                         $timestampVal = !empty($rawDateSent) ? strtotime($rawDateSent) : 0;
-                        $messageSortVal = strtolower(trim(($isFailed ? $log['error_code'] . ' ' : '') . $log['body']));
+                        $messageSortVal = strtolower(trim(($isFailed ? $errCode . ' ' : '') . $log['body']));
 
                         // Build searchable text
                         $searchableText = strtolower(implode(' ', [
@@ -354,8 +389,8 @@ ksort($availableErrorCodes);
                             $cleanedPhone,
                             $recordId ?: '',
                             $log['body'],
-                            $log['error_code'],
-                            $log['error_message'],
+                            $errCode,
+                            $errMsg,
                             $notes,
                             $taskStatus,
                             $typeKey
@@ -365,12 +400,19 @@ ksort($availableErrorCodes);
                         data-log-id="<?= htmlspecialchars($logId) ?>"
                         data-status="<?= htmlspecialchars($taskStatus) ?>"
                         data-timestamp="<?= $timestampVal ?>"
+                        data-datetime="<?= htmlspecialchars($timestampVal ? date('Y-m-d H:i:s', $timestampVal) : '') ?>"
                         data-type="<?= htmlspecialchars($typeKey) ?>"
                         data-phone="<?= htmlspecialchars($cleanedPhone) ?>"
+                        data-phone-formatted="<?= htmlspecialchars($formattedPhone) ?>"
                         data-record="<?= htmlspecialchars((string)$recordId) ?>"
-                        data-error-code="<?= htmlspecialchars(($isFailed && !empty($log['error_code']) && $log['error_code'] !== 'None') ? (string)$log['error_code'] : '') ?>"
+                        data-match-field="<?= htmlspecialchars($matchedRecord ? $matchedRecord['field_name'] : '') ?>"
+                        data-error-code="<?= htmlspecialchars(($isFailed && !empty($errCode) && $errCode !== 'None') ? $errCode : '') ?>"
+                        data-error-desc="<?= htmlspecialchars($errDesc) ?>"
+                        data-body="<?= htmlspecialchars((string)($log['body'] ?? '')) ?>"
                         data-message="<?= htmlspecialchars($messageSortVal) ?>"
                         data-notes="<?= htmlspecialchars($notes) ?>"
+                        data-updated-by="<?= htmlspecialchars((string)($task['updated_by'] ?? '')) ?>"
+                        data-updated-at="<?= htmlspecialchars((string)($task['updated_at'] ?? '')) ?>"
                         data-searchable="<?= htmlspecialchars($searchableText) ?>">
                         
                         <!-- Status Badge -->
@@ -439,11 +481,6 @@ ksort($availableErrorCodes);
                         <!-- Message Content / Error Detail -->
                         <td>
                             <?php if ($isFailed): ?>
-                                <?php 
-                                    $errCode = $log['error_code'];
-                                    $errMsg = $log['error_message'];
-                                    $errDesc = $knownErrors[$errCode] ?? $errMsg;
-                                ?>
                                 <div class="text-danger fw-semibold d-flex align-items-center gap-1 mb-1">
                                     <i class="fas fa-exclamation-triangle"></i>
                                     <span>Error <?= htmlspecialchars($errCode ?: 'Failed') ?></span>

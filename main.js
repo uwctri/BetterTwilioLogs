@@ -10,6 +10,7 @@
     let currentSort = { column: null, direction: 'asc' };
     let currentPage = 1;
     let perPage = 20;
+    let currentFilteredRows = [];
 
     const showToast = (message, type) => {
         const bgClass = (type === 'error') ? 'bg-danger text-white' : 'bg-success text-white';
@@ -267,6 +268,7 @@
         });
 
         const totalMatched = matchedRows.length;
+        currentFilteredRows = matchedRows;
         const totalPages = Math.max(1, Math.ceil(totalMatched / perPage));
         if (currentPage > totalPages)
             currentPage = totalPages;
@@ -390,6 +392,10 @@
         }
 
         if (task.updated_by) {
+            $row.attr('data-updated-by', task.updated_by);
+            if (task.updated_at)
+                $row.attr('data-updated-at', task.updated_at);
+
             let displayDate = '';
             if (task.updated_at) {
                 const parts = task.updated_at.split(/[- :]/);
@@ -502,6 +508,87 @@
         });
     };
 
+    const escapeCsv = (val) => {
+        if (val === null || val === undefined) return '""';
+        const str = String(val).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        return '"' + str.replace(/"/g, '""') + '"';
+    };
+
+    const exportCsv = (mode) => {
+        let rowsToExport = [];
+        let filenameSuffix = 'logs';
+
+        if (mode === 'filtered') {
+            rowsToExport = currentFilteredRows;
+            filenameSuffix = 'filtered';
+        } else if (mode === 'errors') {
+            rowsToExport = $('#twilioLogsTable tbody tr.log-row').filter((_, el) => {
+                const t = $(el).attr('data-type');
+                const err = $(el).attr('data-error-code');
+                return t === 'failed' || (err && err !== 'None');
+            }).get().map(el => $(el));
+            filenameSuffix = 'all_errors';
+        } else {
+            rowsToExport = $('#twilioLogsTable tbody tr.log-row').get().map(el => $(el));
+            filenameSuffix = 'all_logs';
+        }
+
+        if (!rowsToExport.length) {
+            showToast('No entries found to export.', 'error');
+            return;
+        }
+
+        const headers = [
+            'Log ID', 'Status', 'Date Sent', 'Type', 'Participant Phone',
+            'Matched Record ID', 'Matched Field', 'Error Code', 'Error Description',
+            'Message Body', 'Resolution Notes', 'Updated By', 'Updated At'
+        ];
+
+        const typeLabels = {
+            'inbound': 'Inbound',
+            'stop': 'STOP Request',
+            'failed': 'Failed Outbound'
+        };
+
+        const csvLines = [headers.map(escapeCsv).join(',')];
+
+        $.each(rowsToExport, (_, $row) => {
+            const rawType = $row.attr('data-type') || '';
+            const line = [
+                $row.attr('data-log-id') || '',
+                $row.attr('data-status') || 'open',
+                $row.attr('data-datetime') || '',
+                typeLabels[rawType] || rawType,
+                $row.attr('data-phone-formatted') || $row.attr('data-phone') || '',
+                $row.attr('data-record') || '',
+                $row.attr('data-match-field') || '',
+                $row.attr('data-error-code') || '',
+                $row.attr('data-error-desc') || '',
+                $row.attr('data-body') || '',
+                $row.attr('data-notes') || '',
+                $row.attr('data-updated-by') || '',
+                $row.attr('data-updated-at') || ''
+            ];
+            csvLines.push(line.map(escapeCsv).join(','));
+        });
+
+        const csvContent = csvLines.join('\r\n');
+        const dateStr = new Date().toISOString().slice(0, 10);
+        const filename = `twilio_${filenameSuffix}_${dateStr}.csv`;
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast(`Exported ${rowsToExport.length} entries to CSV.`, 'success');
+    };
+
     const init = () => {
         const initialPerPage = parseInt($('#recordsPerPageInput').val(), 10);
         perPage = (!isNaN(initialPerPage) && initialPerPage > 0) ? initialPerPage : 20;
@@ -612,6 +699,45 @@
         $('#btnSyncTwilio').on('click', () => syncNow());
         $('#btnAckPhi').on('click', () => acknowledgePhi());
 
+        $('#btnDownloadCsv').on('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#downloadCsvDropdown').toggleClass('show');
+            $('#downloadCsvMenu').toggleClass('show');
+        });
+
+        $('#downloadCsvMenu').on('click', (e) => {
+            e.stopPropagation();
+        });
+
+        $(document).on('click', (e) => {
+            if (!$(e.target).closest('#downloadCsvDropdown').length) {
+                $('#downloadCsvDropdown').removeClass('show');
+                $('#downloadCsvMenu').removeClass('show');
+            }
+        });
+
+        $('#btnDownloadFiltered').on('click', (e) => {
+            e.preventDefault();
+            $('#downloadCsvDropdown').removeClass('show');
+            $('#downloadCsvMenu').removeClass('show');
+            exportCsv('filtered');
+        });
+
+        $('#btnDownloadAllErrors').on('click', (e) => {
+            e.preventDefault();
+            $('#downloadCsvDropdown').removeClass('show');
+            $('#downloadCsvMenu').removeClass('show');
+            exportCsv('errors');
+        });
+
+        $('#btnDownloadAll').on('click', (e) => {
+            e.preventDefault();
+            $('#downloadCsvDropdown').removeClass('show');
+            $('#downloadCsvMenu').removeClass('show');
+            exportCsv('all');
+        });
+
         updateMetrics();
         applyFilters();
     };
@@ -621,6 +747,7 @@
         openNotesModal,
         saveNotes,
         copyToClipboard,
+        exportCsv,
         init
     });
 

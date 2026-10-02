@@ -376,6 +376,77 @@
     cursor: pointer;
 }
 
+/* Button anchor link underline removal */
+a.btn,
+a.btn:hover,
+a.btn:focus,
+a.btn:active {
+    text-decoration: none !important;
+}
+
+/* Download Dropdown & Glow */
+#downloadCsvDropdown {
+    position: relative;
+    display: inline-block;
+}
+
+#btnDownloadCsv {
+    background-color: #10b981 !important;
+    border-color: #10b981 !important;
+    color: #ffffff !important;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+#btnDownloadCsv:hover {
+    background-color: #059669 !important;
+    border-color: #047857 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 0.25rem rgba(16, 185, 129, 0.45) !important;
+}
+
+#btnDownloadCsv:focus,
+#btnDownloadCsv:active,
+#downloadCsvDropdown.show #btnDownloadCsv {
+    background-color: #047857 !important;
+    border-color: #065f46 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 0.25rem rgba(16, 185, 129, 0.45) !important;
+}
+
+#downloadCsvDropdown #downloadCsvMenu {
+    position: absolute !important;
+    top: 100% !important;
+    right: 0 !important;
+    left: auto !important;
+    z-index: 1050 !important;
+    margin-top: 4px !important;
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    display: none !important;
+}
+
+#downloadCsvDropdown.show #downloadCsvMenu,
+#downloadCsvMenu.show {
+    display: block !important;
+}
+
+#downloadCsvMenu .dropdown-item,
+#downloadCsvMenu .dropdown-item:hover,
+#downloadCsvMenu .dropdown-item:focus,
+#downloadCsvMenu .dropdown-item:active,
+#downloadCsvMenu .dropdown-item * {
+    text-decoration: none !important;
+}
+
+#downloadCsvMenu .dropdown-item:hover {
+    background-color: #f8fafc;
+}
+
+
+
 
 
 
